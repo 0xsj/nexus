@@ -1,0 +1,279 @@
+syntax = "proto3";
+
+package notifications.v1;
+
+option go_package = "github.com/0xsj/nexus/api/notifications/v1;notificationsv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "common/v1/common.proto";
+
+// Notification service handles push notifications and real-time updates
+service NotificationService {
+  // Register device for push notifications
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse) {
+    option (google.api.http) = {
+      post: "/v1/notifications/devices"
+      body: "*"
+    };
+  }
+  
+  // Unregister device from push notifications
+  rpc UnregisterDevice(UnregisterDeviceRequest) returns (UnregisterDeviceResponse) {
+    option (google.api.http) = {
+      delete: "/v1/notifications/devices/{device_token}"
+    };
+  }
+  
+  // Get notification by ID
+  rpc GetNotification(GetNotificationRequest) returns (GetNotificationResponse) {
+    option (google.api.http) = {
+      get: "/v1/notifications/{notification_id}"
+    };
+  }
+  
+  // List notifications (paginated)
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse) {
+    option (google.api.http) = {
+      get: "/v1/notifications"
+    };
+  }
+  
+  // Mark notification as read
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse) {
+    option (google.api.http) = {
+      post: "/v1/notifications/{notification_id}/read"
+      body: "*"
+    };
+  }
+  
+  // Mark all notifications as read
+  rpc MarkAllAsRead(MarkAllAsReadRequest) returns (MarkAllAsReadResponse) {
+    option (google.api.http) = {
+      post: "/v1/notifications/read-all"
+      body: "*"
+    };
+  }
+  
+  // Delete notification
+  rpc DeleteNotification(DeleteNotificationRequest) returns (DeleteNotificationResponse) {
+    option (google.api.http) = {
+      delete: "/v1/notifications/{notification_id}"
+    };
+  }
+  
+  // Get notification preferences
+  rpc GetPreferences(GetPreferencesRequest) returns (GetPreferencesResponse) {
+    option (google.api.http) = {
+      get: "/v1/notifications/preferences"
+    };
+  }
+  
+  // Update notification preferences
+  rpc UpdatePreferences(UpdatePreferencesRequest) returns (UpdatePreferencesResponse) {
+    option (google.api.http) = {
+      patch: "/v1/notifications/preferences"
+      body: "*"
+    };
+  }
+  
+  // Stream real-time notifications (server streaming)
+  rpc StreamNotifications(StreamNotificationsRequest) returns (stream NotificationEvent) {
+    option (google.api.http) = {
+      get: "/v1/notifications/stream"
+    };
+  }
+}
+
+// Notification type
+enum NotificationType {
+  NOTIFICATION_TYPE_UNSPECIFIED = 0;
+  NOTIFICATION_TYPE_FOLLOW = 1;
+  NOTIFICATION_TYPE_LIKE = 2;
+  NOTIFICATION_TYPE_COMMENT = 3;
+  NOTIFICATION_TYPE_MENTION = 4;
+  NOTIFICATION_TYPE_MESSAGE = 5;
+  NOTIFICATION_TYPE_SYSTEM = 6;
+}
+
+// Push notification platform
+enum PushPlatform {
+  PUSH_PLATFORM_UNSPECIFIED = 0;
+  PUSH_PLATFORM_FCM = 1;  // Firebase Cloud Messaging (Android)
+  PUSH_PLATFORM_APNS = 2; // Apple Push Notification Service (iOS)
+  PUSH_PLATFORM_WEB = 3;  // Web Push
+}
+
+// Notification resource
+message Notification {
+  string id = 1;
+  string user_id = 2;
+  NotificationType type = 3;
+  string title = 4;
+  string body = 5;
+  map<string, string> data = 6; // Additional data (e.g., user_id, post_id)
+  bool is_read = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp read_at = 9;
+  
+  // Optional: Actor who triggered the notification
+  optional Actor actor = 10;
+  
+  // Optional: Target resource (post, comment, etc.)
+  optional string target_type = 11;
+  optional string target_id = 12;
+}
+
+// Actor who triggered the notification
+message Actor {
+  string user_id = 1;
+  string username = 2;
+  string avatar_url = 3;
+}
+
+// Device registration
+message Device {
+  string device_token = 1;
+  PushPlatform platform = 2;
+  string device_id = 3;
+  string device_name = 4;
+  google.protobuf.Timestamp registered_at = 5;
+  google.protobuf.Timestamp last_used_at = 6;
+}
+
+// Notification preferences
+message NotificationPreferences {
+  bool push_enabled = 1;
+  bool email_enabled = 2;
+  bool in_app_enabled = 3;
+  
+  // Per-type preferences
+  map<string, bool> type_preferences = 4; // e.g., "follow": true, "like": false
+  
+  // Quiet hours
+  optional QuietHours quiet_hours = 5;
+}
+
+// Quiet hours (do not disturb)
+message QuietHours {
+  bool enabled = 1;
+  string start_time = 2; // e.g., "22:00"
+  string end_time = 3;   // e.g., "08:00"
+  string timezone = 4;   // IANA timezone
+}
+
+// Notification event (for streaming)
+message NotificationEvent {
+  string event_id = 1;
+  Notification notification = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+// RegisterDevice
+message RegisterDeviceRequest {
+  string device_token = 1;
+  PushPlatform platform = 2;
+  string device_id = 3;
+  string device_name = 4;
+}
+
+message RegisterDeviceResponse {
+  Device device = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// UnregisterDevice
+message UnregisterDeviceRequest {
+  string device_token = 1;
+}
+
+message UnregisterDeviceResponse {
+  bool success = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetNotification
+message GetNotificationRequest {
+  string notification_id = 1;
+}
+
+message GetNotificationResponse {
+  Notification notification = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// ListNotifications
+message ListNotificationsRequest {
+  common.v1.PaginationRequest pagination = 1;
+  optional bool unread_only = 2;
+  optional NotificationType type = 3;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  common.v1.PaginationResponse pagination = 2;
+  int32 unread_count = 3;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// MarkAsRead
+message MarkAsReadRequest {
+  string notification_id = 1;
+}
+
+message MarkAsReadResponse {
+  bool success = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// MarkAllAsRead
+message MarkAllAsReadRequest {
+  // User identified from auth token
+}
+
+message MarkAllAsReadResponse {
+  bool success = 1;
+  int32 marked_count = 2;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// DeleteNotification
+message DeleteNotificationRequest {
+  string notification_id = 1;
+}
+
+message DeleteNotificationResponse {
+  bool success = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetPreferences
+message GetPreferencesRequest {
+  // User identified from auth token
+}
+
+message GetPreferencesResponse {
+  NotificationPreferences preferences = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// UpdatePreferences
+message UpdatePreferencesRequest {
+  optional bool push_enabled = 1;
+  optional bool email_enabled = 2;
+  optional bool in_app_enabled = 3;
+  map<string, bool> type_preferences = 4;
+  optional QuietHours quiet_hours = 5;
+}
+
+message UpdatePreferencesResponse {
+  NotificationPreferences preferences = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// StreamNotifications (server streaming)
+message StreamNotificationsRequest {
+  // User identified from auth token
+  // Optional: filter by types
+  repeated NotificationType types = 1;
+}

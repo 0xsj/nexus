@@ -1,0 +1,24 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Keep example
+!.env.example
+!deployments/docker/.env.docker.example
+
+# Binaries
+bin/
+
+# Coverage
+coverage.out
+coverage.html
+
+# Air tmp
+tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

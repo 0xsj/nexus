@@ -1,0 +1,21 @@
+version: v2
+modules:
+  - path: .
+deps:
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+    - COMMENTS
+    - UNARY_RPC
+  except:
+    - PACKAGE_VERSION_SUFFIX
+  rpc_allow_same_request_response: false
+  rpc_allow_google_protobuf_empty_requests: true
+  rpc_allow_google_protobuf_empty_responses: true
+breaking:
+  use:
+    - FILE
+  except:
+    - EXTENSION_MESSAGE_NO_DELETE
+    - FIELD_SAME_LABEL

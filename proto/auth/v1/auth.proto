@@ -1,0 +1,222 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "github.com/0xsj/nexus/api/auth/v1;authv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "common/v1/common.proto";
+
+// Authentication service handles user authentication flows
+service AuthService {
+  // Login with email and password
+  rpc LoginWithPassword(LoginWithPasswordRequest) returns (LoginResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/login"
+      body: "*"
+    };
+  }
+  
+  // Send magic link to email
+  rpc SendMagicLink(SendMagicLinkRequest) returns (SendMagicLinkResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/magic-link/send"
+      body: "*"
+    };
+  }
+  
+  // Verify magic link token
+  rpc VerifyMagicLink(VerifyMagicLinkRequest) returns (LoginResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/magic-link/verify"
+      body: "*"
+    };
+  }
+  
+  // Initiate OAuth flow (returns authorization URL)
+  rpc InitiateOAuth(InitiateOAuthRequest) returns (InitiateOAuthResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/oauth/{provider}/initiate"
+    };
+  }
+  
+  // Complete OAuth flow (exchange code for tokens)
+  rpc CompleteOAuth(CompleteOAuthRequest) returns (LoginResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/oauth/{provider}/callback"
+      body: "*"
+    };
+  }
+  
+  // Refresh access token
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/refresh"
+      body: "*"
+    };
+  }
+  
+  // Logout (invalidate current session)
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/logout"
+      body: "*"
+    };
+  }
+  
+  // Logout from all devices
+  rpc LogoutAll(LogoutAllRequest) returns (LogoutAllResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/logout-all"
+      body: "*"
+    };
+  }
+  
+  // Get current session info
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
+    option (google.api.http) = {
+      get: "/v1/auth/session"
+    };
+  }
+  
+  // List all active sessions for current user
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
+    option (google.api.http) = {
+      get: "/v1/auth/sessions"
+    };
+  }
+}
+
+// OAuth provider
+enum OAuthProvider {
+  OAUTH_PROVIDER_UNSPECIFIED = 0;
+  OAUTH_PROVIDER_GOOGLE = 1;
+  OAUTH_PROVIDER_APPLE = 2;
+  OAUTH_PROVIDER_GITHUB = 3;
+}
+
+// Session information
+message Session {
+  string session_id = 1;
+  string user_id = 2;
+  string device_id = 3;
+  string device_name = 4;
+  string ip_address = 5;
+  string user_agent = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp last_active_at = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  bool is_current = 10;
+}
+
+// Token pair (access + refresh)
+message TokenPair {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 expires_in = 3; // seconds until access token expires
+}
+
+// LoginWithPassword
+message LoginWithPasswordRequest {
+  string email = 1;
+  string password = 2;
+  common.v1.ClientContext client_context = 10;
+}
+
+message LoginResponse {
+  TokenPair tokens = 1;
+  string user_id = 2;
+  Session session = 3;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// SendMagicLink
+message SendMagicLinkRequest {
+  string email = 1;
+  common.v1.ClientContext client_context = 10;
+}
+
+message SendMagicLinkResponse {
+  bool success = 1;
+  string message = 2; // "Magic link sent to your email"
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// VerifyMagicLink
+message VerifyMagicLinkRequest {
+  string token = 1;
+  common.v1.ClientContext client_context = 10;
+}
+
+// InitiateOAuth
+message InitiateOAuthRequest {
+  OAuthProvider provider = 1;
+  string redirect_uri = 2;
+  common.v1.ClientContext client_context = 10;
+}
+
+message InitiateOAuthResponse {
+  string authorization_url = 1;
+  string state = 2; // CSRF token
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// CompleteOAuth
+message CompleteOAuthRequest {
+  OAuthProvider provider = 1;
+  string code = 2;
+  string state = 3;
+  common.v1.ClientContext client_context = 10;
+}
+
+// RefreshToken
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  TokenPair tokens = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// Logout
+message LogoutRequest {
+  // Session identified from access token in headers
+}
+
+message LogoutResponse {
+  bool success = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// LogoutAll
+message LogoutAllRequest {
+  // User identified from access token in headers
+}
+
+message LogoutAllResponse {
+  bool success = 1;
+  int32 sessions_invalidated = 2;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetSession
+message GetSessionRequest {
+  // Session identified from access token in headers
+}
+
+message GetSessionResponse {
+  Session session = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// ListSessions
+message ListSessionsRequest {
+  // User identified from access token in headers
+}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}

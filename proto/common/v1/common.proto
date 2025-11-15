@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package common.v1;
+
+option go_package = "github.com/0xsj/nexus/api/common/v1;commonv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Pagination request parameters
+message PaginationRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string cursor = 3;
+}
+
+// Pagination response metadata
+message PaginationResponse {
+  int32 page = 1;
+  int32 page_size = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_more = 5;
+  string next_cursor = 6;
+  string prev_cursor = 7;
+}
+
+// Sort order
+enum SortOrder {
+  SORT_ORDER_UNSPECIFIED = 0;
+  SORT_ORDER_ASC = 1;
+  SORT_ORDER_DESC = 2;
+}
+
+// Timestamp range for filtering
+message TimeRange {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+// Client context
+message ClientContext {
+  string platform = 1;
+  string version = 2;
+  string timezone = 3;
+  string locale = 4;
+}
+
+// Response metadata
+message ResponseMetadata {
+  string request_id = 1;
+  google.protobuf.Timestamp server_time = 2;
+  int64 processing_time_ms = 3;
+}

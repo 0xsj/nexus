@@ -1,0 +1,381 @@
+syntax = "proto3";
+
+package content.v1;
+
+option go_package = "github.com/0xsj/nexus/api/content/v1;contentv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/field_mask.proto";
+import "common/v1/common.proto";
+
+// Content service handles posts, feeds, and content management
+service ContentService {
+  // Create a new post
+  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse) {
+    option (google.api.http) = {
+      post: "/v1/posts"
+      body: "*"
+    };
+  }
+  
+  // Get post by ID
+  rpc GetPost(GetPostRequest) returns (GetPostResponse) {
+    option (google.api.http) = {
+      get: "/v1/posts/{post_id}"
+    };
+  }
+  
+  // Update post
+  rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse) {
+    option (google.api.http) = {
+      patch: "/v1/posts/{post_id}"
+      body: "*"
+    };
+  }
+  
+  // Delete post
+  rpc DeletePost(DeletePostRequest) returns (DeletePostResponse) {
+    option (google.api.http) = {
+      delete: "/v1/posts/{post_id}"
+    };
+  }
+  
+  // Get user's feed (posts from followed users)
+  rpc GetFeed(GetFeedRequest) returns (GetFeedResponse) {
+    option (google.api.http) = {
+      get: "/v1/feed"
+    };
+  }
+  
+  // Get posts by user
+  rpc GetUserPosts(GetUserPostsRequest) returns (GetUserPostsResponse) {
+    option (google.api.http) = {
+      get: "/v1/users/{user_id}/posts"
+    };
+  }
+  
+  // Get trending posts
+  rpc GetTrendingPosts(GetTrendingPostsRequest) returns (GetTrendingPostsResponse) {
+    option (google.api.http) = {
+      get: "/v1/posts/trending"
+    };
+  }
+  
+  // Create a draft
+  rpc CreateDraft(CreateDraftRequest) returns (CreateDraftResponse) {
+    option (google.api.http) = {
+      post: "/v1/drafts"
+      body: "*"
+    };
+  }
+  
+  // List user's drafts
+  rpc ListDrafts(ListDraftsRequest) returns (ListDraftsResponse) {
+    option (google.api.http) = {
+      get: "/v1/drafts"
+    };
+  }
+  
+  // Publish a draft
+  rpc PublishDraft(PublishDraftRequest) returns (PublishDraftResponse) {
+    option (google.api.http) = {
+      post: "/v1/drafts/{draft_id}/publish"
+      body: "*"
+    };
+  }
+  
+  // Stream real-time feed updates (server streaming)
+  rpc StreamFeed(StreamFeedRequest) returns (stream FeedEvent) {
+    option (google.api.http) = {
+      get: "/v1/feed/stream"
+    };
+  }
+}
+
+// Post visibility
+enum PostVisibility {
+  POST_VISIBILITY_UNSPECIFIED = 0;
+  POST_VISIBILITY_PUBLIC = 1;
+  POST_VISIBILITY_FOLLOWERS = 2;
+  POST_VISIBILITY_PRIVATE = 3;
+}
+
+// Post status
+enum PostStatus {
+  POST_STATUS_UNSPECIFIED = 0;
+  POST_STATUS_DRAFT = 1;
+  POST_STATUS_PUBLISHED = 2;
+  POST_STATUS_ARCHIVED = 3;
+  POST_STATUS_DELETED = 4;
+}
+
+// Content type
+enum ContentType {
+  CONTENT_TYPE_UNSPECIFIED = 0;
+  CONTENT_TYPE_TEXT = 1;
+  CONTENT_TYPE_IMAGE = 2;
+  CONTENT_TYPE_VIDEO = 3;
+  CONTENT_TYPE_LINK = 4;
+  CONTENT_TYPE_POLL = 5;
+}
+
+// Post resource
+message Post {
+  string id = 1;
+  string user_id = 2;
+  ContentType type = 3;
+  string content = 4;
+  PostVisibility visibility = 5;
+  PostStatus status = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  optional google.protobuf.Timestamp published_at = 9;
+  
+  // Author info
+  Author author = 10;
+  
+  // Media attachments
+  repeated MediaItem media = 11;
+  
+  // Link preview
+  optional LinkPreview link_preview = 12;
+  
+  // Poll data
+  optional Poll poll = 13;
+  
+  // Engagement metrics
+  EngagementMetrics metrics = 14;
+  
+  // Tags/hashtags
+  repeated string tags = 15;
+  
+  // Mentioned users
+  repeated string mentioned_user_ids = 16;
+  
+  // Location
+  optional Location location = 17;
+}
+
+// Author info
+message Author {
+  string user_id = 1;
+  string username = 2;
+  string display_name = 3;
+  string avatar_url = 4;
+  bool is_verified = 5;
+}
+
+// Media item
+message MediaItem {
+  string id = 1;
+  string url = 2;
+  string thumbnail_url = 3;
+  string type = 4; // "image", "video"
+  optional int32 width = 5;
+  optional int32 height = 6;
+  optional int32 duration_seconds = 7;
+  optional string description = 8; // Alt text for accessibility
+}
+
+// Link preview
+message LinkPreview {
+  string url = 1;
+  string title = 2;
+  string description = 3;
+  string image_url = 4;
+  string site_name = 5;
+}
+
+// Poll
+message Poll {
+  string question = 1;
+  repeated PollOption options = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  bool allow_multiple_choices = 4;
+  int32 total_votes = 5;
+  optional int32 user_vote_index = 6; // Index of option user voted for
+}
+
+// Poll option
+message PollOption {
+  int32 index = 1;
+  string text = 2;
+  int32 votes = 3;
+  double percentage = 4;
+}
+
+// Location
+message Location {
+  double latitude = 1;
+  double longitude = 2;
+  string name = 3; // Human-readable name
+  optional string place_id = 4; // Google Places ID or similar
+}
+
+// Engagement metrics
+message EngagementMetrics {
+  int32 likes_count = 1;
+  int32 comments_count = 2;
+  int32 shares_count = 3;
+  int32 views_count = 4;
+  int32 bookmarks_count = 5;
+  
+  // Current user's engagement
+  bool is_liked_by_user = 6;
+  bool is_bookmarked_by_user = 7;
+}
+
+// Feed event (for streaming)
+message FeedEvent {
+  string event_id = 1;
+  string event_type = 2; // "new_post", "updated_post", "deleted_post"
+  Post post = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+// CreatePost
+message CreatePostRequest {
+  ContentType type = 1;
+  string content = 2;
+  PostVisibility visibility = 3;
+  repeated string media_ids = 4; // Pre-uploaded media IDs
+  optional string link_url = 5; // For link posts
+  optional Poll poll = 6; // For poll posts
+  repeated string tags = 7;
+  repeated string mentioned_user_ids = 8;
+  optional Location location = 9;
+  
+  // Schedule for later
+  optional google.protobuf.Timestamp scheduled_at = 10;
+}
+
+message CreatePostResponse {
+  Post post = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetPost
+message GetPostRequest {
+  string post_id = 1;
+}
+
+message GetPostResponse {
+  Post post = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// UpdatePost
+message UpdatePostRequest {
+  string post_id = 1;
+  google.protobuf.FieldMask update_mask = 2;
+  
+  optional string content = 3;
+  optional PostVisibility visibility = 4;
+  repeated string media_ids = 5;
+  repeated string tags = 6;
+  optional Location location = 7;
+}
+
+message UpdatePostResponse {
+  Post post = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// DeletePost
+message DeletePostRequest {
+  string post_id = 1;
+}
+
+message DeletePostResponse {
+  bool success = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetFeed
+message GetFeedRequest {
+  common.v1.PaginationRequest pagination = 1;
+  optional string cursor = 2; // For cursor-based infinite scroll
+  optional FeedAlgorithm algorithm = 3;
+}
+
+enum FeedAlgorithm {
+  FEED_ALGORITHM_UNSPECIFIED = 0;
+  FEED_ALGORITHM_CHRONOLOGICAL = 1;
+  FEED_ALGORITHM_POPULAR = 2;
+  FEED_ALGORITHM_PERSONALIZED = 3;
+}
+
+message GetFeedResponse {
+  repeated Post posts = 1;
+  common.v1.PaginationResponse pagination = 2;
+  string next_cursor = 3;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetUserPosts
+message GetUserPostsRequest {
+  string user_id = 1;
+  common.v1.PaginationRequest pagination = 2;
+  optional PostStatus status = 3;
+}
+
+message GetUserPostsResponse {
+  repeated Post posts = 1;
+  common.v1.PaginationResponse pagination = 2;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetTrendingPosts
+message GetTrendingPostsRequest {
+  common.v1.PaginationRequest pagination = 1;
+  optional common.v1.TimeRange time_range = 2; // e.g., last 24h, last 7d
+}
+
+message GetTrendingPostsResponse {
+  repeated Post posts = 1;
+  common.v1.PaginationResponse pagination = 2;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// CreateDraft
+message CreateDraftRequest {
+  ContentType type = 1;
+  string content = 2;
+  PostVisibility visibility = 3;
+  repeated string media_ids = 4;
+  repeated string tags = 5;
+}
+
+message CreateDraftResponse {
+  Post draft = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// ListDrafts
+message ListDraftsRequest {
+  common.v1.PaginationRequest pagination = 1;
+}
+
+message ListDraftsResponse {
+  repeated Post drafts = 1;
+  common.v1.PaginationResponse pagination = 2;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// PublishDraft
+message PublishDraftRequest {
+  string draft_id = 1;
+  optional google.protobuf.Timestamp scheduled_at = 2;
+}
+
+message PublishDraftResponse {
+  Post post = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// StreamFeed
+message StreamFeedRequest {
+  // User identified from auth token
+  optional FeedAlgorithm algorithm = 1;
+}

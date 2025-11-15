@@ -1,0 +1,289 @@
+syntax = "proto3";
+
+package presence.v1;
+
+option go_package = "github.com/0xsj/nexus/api/presence/v1;presencev1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "common/v1/common.proto";
+
+// Presence service handles online/offline status and activity
+service PresenceService {
+  // Update presence (heartbeat)
+  rpc UpdatePresence(UpdatePresenceRequest) returns (UpdatePresenceResponse) {
+    option (google.api.http) = {
+      post: "/v1/presence"
+      body: "*"
+    };
+  }
+  
+  // Get presence for a user
+  rpc GetPresence(GetPresenceRequest) returns (GetPresenceResponse) {
+    option (google.api.http) = {
+      get: "/v1/presence/{user_id}"
+    };
+  }
+  
+  // Get presence for multiple users (bulk)
+  rpc GetBulkPresence(GetBulkPresenceRequest) returns (GetBulkPresenceResponse) {
+    option (google.api.http) = {
+      post: "/v1/presence/bulk"
+      body: "*"
+    };
+  }
+  
+  // Set custom status
+  rpc SetStatus(SetStatusRequest) returns (SetStatusResponse) {
+    option (google.api.http) = {
+      post: "/v1/presence/status"
+      body: "*"
+    };
+  }
+  
+  // Clear custom status
+  rpc ClearStatus(ClearStatusRequest) returns (ClearStatusResponse) {
+    option (google.api.http) = {
+      delete: "/v1/presence/status"
+    };
+  }
+  
+  // Set activity (what user is currently doing)
+  rpc SetActivity(SetActivityRequest) returns (SetActivityResponse) {
+    option (google.api.http) = {
+      post: "/v1/presence/activity"
+      body: "*"
+    };
+  }
+  
+  // Get online friends/followers
+  rpc GetOnlineUsers(GetOnlineUsersRequest) returns (GetOnlineUsersResponse) {
+    option (google.api.http) = {
+      get: "/v1/presence/online"
+    };
+  }
+  
+  // Stream presence updates (server streaming)
+  rpc StreamPresence(StreamPresenceRequest) returns (stream PresenceEvent) {
+    option (google.api.http) = {
+      get: "/v1/presence/stream"
+    };
+  }
+  
+  // Bidirectional presence streaming (for real-time updates)
+  rpc PresenceStream(stream PresenceStreamRequest) returns (stream PresenceStreamResponse);
+}
+
+// Online status
+enum OnlineStatus {
+  ONLINE_STATUS_UNSPECIFIED = 0;
+  ONLINE_STATUS_ONLINE = 1;
+  ONLINE_STATUS_AWAY = 2;
+  ONLINE_STATUS_BUSY = 3;
+  ONLINE_STATUS_OFFLINE = 4;
+  ONLINE_STATUS_INVISIBLE = 5; // Appear offline
+}
+
+// Activity type
+enum ActivityType {
+  ACTIVITY_TYPE_UNSPECIFIED = 0;
+  ACTIVITY_TYPE_BROWSING = 1;
+  ACTIVITY_TYPE_TYPING = 2;
+  ACTIVITY_TYPE_RECORDING = 3; // Recording audio/video
+  ACTIVITY_TYPE_IN_CALL = 4;
+  ACTIVITY_TYPE_PLAYING = 5; // Gaming
+  ACTIVITY_TYPE_LISTENING = 6; // Music
+  ACTIVITY_TYPE_WATCHING = 7; // Video
+}
+
+// Presence information
+message Presence {
+  string user_id = 1;
+  OnlineStatus status = 2;
+  google.protobuf.Timestamp last_seen_at = 3;
+  
+  // Custom status
+  optional CustomStatus custom_status = 4;
+  
+  // Current activity
+  optional Activity activity = 5;
+  
+  // Device info
+  repeated Device devices = 6;
+  
+  // Available/idle time
+  optional google.protobuf.Timestamp idle_since = 7;
+  
+  // Calculated status
+  bool is_online = 8;
+  bool is_away = 9;
+}
+
+// Custom status message
+message CustomStatus {
+  string text = 1;
+  optional string emoji = 2;
+  optional google.protobuf.Timestamp expires_at = 3;
+}
+
+// User activity
+message Activity {
+  ActivityType type = 1;
+  string description = 2; // "Listening to Spotify", "Watching Netflix"
+  optional string details = 3; // Song name, movie title, etc.
+  optional string url = 4; // Link to content
+  google.protobuf.Timestamp started_at = 5;
+}
+
+// Device information
+message Device {
+  string device_id = 1;
+  string platform = 2; // "ios", "android", "web", "desktop"
+  string app_version = 3;
+  OnlineStatus status = 4;
+  google.protobuf.Timestamp last_active_at = 5;
+}
+
+// User presence summary (for lists)
+message UserPresence {
+  string user_id = 1;
+  string username = 2;
+  string avatar_url = 3;
+  OnlineStatus status = 4;
+  optional CustomStatus custom_status = 5;
+  optional google.protobuf.Timestamp last_seen_at = 6;
+  bool is_online = 7;
+}
+
+// Presence event (for streaming)
+message PresenceEvent {
+  string event_id = 1;
+  string event_type = 2; // "user_online", "user_offline", "status_changed", "activity_changed"
+  Presence presence = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+// UpdatePresence (heartbeat)
+message UpdatePresenceRequest {
+  OnlineStatus status = 1;
+  optional string device_id = 2;
+  optional Activity activity = 3;
+}
+
+message UpdatePresenceResponse {
+  Presence presence = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetPresence
+message GetPresenceRequest {
+  string user_id = 1;
+}
+
+message GetPresenceResponse {
+  Presence presence = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetBulkPresence
+message GetBulkPresenceRequest {
+  repeated string user_ids = 1; // Max 100 users
+}
+
+message GetBulkPresenceResponse {
+  repeated Presence presences = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// SetStatus
+message SetStatusRequest {
+  string text = 1;
+  optional string emoji = 2;
+  optional google.protobuf.Timestamp expires_at = 3;
+}
+
+message SetStatusResponse {
+  CustomStatus status = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// ClearStatus
+message ClearStatusRequest {
+  // User identified from auth token
+}
+
+message ClearStatusResponse {
+  bool success = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// SetActivity
+message SetActivityRequest {
+  ActivityType type = 1;
+  string description = 2;
+  optional string details = 3;
+  optional string url = 4;
+}
+
+message SetActivityResponse {
+  Activity activity = 1;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// GetOnlineUsers
+message GetOnlineUsersRequest {
+  common.v1.PaginationRequest pagination = 1;
+  optional OnlineStatus status_filter = 2; // Filter by specific status
+}
+
+message GetOnlineUsersResponse {
+  repeated UserPresence users = 1;
+  common.v1.PaginationResponse pagination = 2;
+  int32 total_online = 3;
+  common.v1.ResponseMetadata metadata = 10;
+}
+
+// StreamPresence
+message StreamPresenceRequest {
+  // Watch specific users (optional, default: all followed users)
+  repeated string user_ids = 1;
+}
+
+// PresenceStream (bidirectional)
+message PresenceStreamRequest {
+  oneof request {
+    Subscribe subscribe = 1;
+    Unsubscribe unsubscribe = 2;
+    Heartbeat heartbeat = 3;
+  }
+}
+
+message Subscribe {
+  repeated string user_ids = 1;
+}
+
+message Unsubscribe {
+  repeated string user_ids = 1;
+}
+
+message Heartbeat {
+  OnlineStatus status = 1;
+  optional Activity activity = 2;
+}
+
+message PresenceStreamResponse {
+  oneof response {
+    PresenceEvent presence_event = 1;
+    SubscriptionConfirmation subscription_confirmation = 2;
+    HeartbeatAck heartbeat_ack = 3;
+  }
+}
+
+message SubscriptionConfirmation {
+  repeated string user_ids = 1;
+  int32 subscribed_count = 2;
+}
+
+message HeartbeatAck {
+  google.protobuf.Timestamp server_time = 1;
+}

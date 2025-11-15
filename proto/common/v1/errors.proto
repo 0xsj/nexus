@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package common.v1;
+
+option go_package = "github.com/0xsj/nexus/api/common/v1;commonv1";
+
+// Error details for rich error responses
+message ErrorDetails {
+  string code = 1;
+  string message = 2;
+  string kind = 3;
+  string operation = 4;
+  map<string, string> metadata = 5;
+  repeated FieldError field_errors = 6;
+}
+
+// Field-level validation error
+message FieldError {
+  string field = 1;
+  string code = 2;
+  string message = 3;
+}
