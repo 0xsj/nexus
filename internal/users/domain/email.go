@@ -7,42 +7,28 @@ import (
 	"github.com/0xsj/result"
 )
 
-const (
-	// emailMaxLength is the maximum allowed length for an email address.
-	// RFC 5321 specifies 254 as the maximum length.
-	emailMaxLength = 254
-)
-
-// emailRegex validates email format.
-// This is a simplified regex for basic email validation.
+// emailRegex is a simple regex for email validation.
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 // Email is a value object representing a validated email address.
-// Email is immutable and always guaranteed to be valid.
 type Email struct {
 	value string
 }
 
 // NewEmail creates a new Email value object.
-// Returns a Result containing the Email or an error if validation fails.
+// Returns an error if the email is invalid.
 func NewEmail(email string) result.Result[Email] {
 	// Trim whitespace
 	email = strings.TrimSpace(email)
 
 	// Check if empty
 	if email == "" {
-		return result.Err[Email](ErrInvalidEmail{
-			Email:  email,
-			Reason: "email cannot be empty",
-		})
+		return result.Err[Email](ErrEmptyEmail())
 	}
 
-	// Check length
-	if len(email) > emailMaxLength {
-		return result.Err[Email](ErrInvalidEmail{
-			Email:  email,
-			Reason: "email cannot exceed 254 characters",
-		})
+	// Check length (RFC 5321 specifies 254 as max)
+	if len(email) > 254 {
+		return result.Err[Email](ErrEmailTooLong(len(email), 254))
 	}
 
 	// Convert to lowercase for consistency
@@ -50,10 +36,7 @@ func NewEmail(email string) result.Result[Email] {
 
 	// Validate format
 	if !emailRegex.MatchString(email) {
-		return result.Err[Email](ErrInvalidEmail{
-			Email:  email,
-			Reason: "invalid email format",
-		})
+		return result.Err[Email](ErrInvalidEmail())
 	}
 
 	return result.Ok(Email{value: email})
@@ -74,12 +57,7 @@ func (e Email) Equals(other Email) bool {
 	return e.value == other.value
 }
 
-// IsEmpty checks if the email is empty (zero value).
-func (e Email) IsEmpty() bool {
-	return e.value == ""
-}
-
-// Domain returns the domain part of the email (after @).
+// Domain returns the domain part of the email.
 func (e Email) Domain() string {
 	parts := strings.Split(e.value, "@")
 	if len(parts) != 2 {
@@ -95,19 +73,4 @@ func (e Email) LocalPart() string {
 		return ""
 	}
 	return parts[0]
-}
-
-// MarshalText implements encoding.TextMarshaler for JSON/XML serialization.
-func (e Email) MarshalText() ([]byte, error) {
-	return []byte(e.value), nil
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler for JSON/XML deserialization.
-func (e *Email) UnmarshalText(text []byte) error {
-	emailResult := NewEmail(string(text))
-	if emailResult.IsErr() {
-		return emailResult.UnwrapErr()
-	}
-	*e = emailResult.Unwrap()
-	return nil
 }

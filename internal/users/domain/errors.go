@@ -1,4 +1,3 @@
-// Package domain contains the core business logic for the users domain.
 package domain
 
 import (
@@ -8,199 +7,146 @@ import (
 )
 
 // ============================================================================
-// Email Validation Errors (Kind: KindValidation)
+// Validation Errors (Kind: KindValidation)
 // ============================================================================
 
-// ErrInvalidEmail is returned when an email address is invalid.
-type ErrInvalidEmail struct {
-	Email  string
-	Reason string
+// Email validation errors
+func ErrInvalidEmail() error {
+	return result.Validation("user.email.validate", "invalid email format", nil)
 }
 
-func (e ErrInvalidEmail) Error() string {
-	return fmt.Sprintf("invalid email '%s': %s", e.Email, e.Reason)
+func ErrEmptyEmail() error {
+	return result.Validation("user.email.validate", "email cannot be empty", nil)
 }
 
-func (e ErrInvalidEmail) Unwrap() error {
-	return result.Validation("user.email.validate", e.Reason, map[string]any{
-		"email":  e.Email,
-		"reason": e.Reason,
-	})
+func ErrEmailTooLong(length, max int) error {
+	return result.Validation(
+		"user.email.validate",
+		fmt.Sprintf("email too long: %d characters (max: %d)", length, max),
+		map[string]any{
+			"length": length,
+			"max":    max,
+		},
+	)
 }
 
-// ============================================================================
-// Username Validation Errors (Kind: KindValidation)
-// ============================================================================
-
-// ErrInvalidUsername is returned when a username is invalid.
-type ErrInvalidUsername struct {
-	Username string
-	Reason   string
+// Username validation errors
+func ErrInvalidUsername() error {
+	return result.Validation("user.username.validate", "invalid username", nil)
 }
 
-func (e ErrInvalidUsername) Error() string {
-	return fmt.Sprintf("invalid username '%s': %s", e.Username, e.Reason)
+func ErrEmptyUsername() error {
+	return result.Validation("user.username.validate", "username cannot be empty", nil)
 }
 
-func (e ErrInvalidUsername) Unwrap() error {
-	return result.Validation("user.username.validate", e.Reason, map[string]any{
-		"username": e.Username,
-		"reason":   e.Reason,
-	})
+func ErrUsernameTooShort(length, min int) error {
+	return result.Validation(
+		"user.username.validate",
+		fmt.Sprintf("username too short: %d characters (min: %d)", length, min),
+		map[string]any{
+			"length": length,
+			"min":    min,
+		},
+	)
 }
 
-// ============================================================================
-// Password Validation Errors (Kind: KindValidation)
-// ============================================================================
-
-// ErrInvalidPassword is returned when a password is invalid.
-type ErrInvalidPassword struct {
-	Reason string
+func ErrUsernameTooLong(length, max int) error {
+	return result.Validation(
+		"user.username.validate",
+		fmt.Sprintf("username too long: %d characters (max: %d)", length, max),
+		map[string]any{
+			"length": length,
+			"max":    max,
+		},
+	)
 }
 
-func (e ErrInvalidPassword) Error() string {
-	return fmt.Sprintf("invalid password: %s", e.Reason)
+func ErrInvalidUsernameChar(username string) error {
+	return result.Validation(
+		"user.username.validate",
+		"username contains invalid characters (only alphanumeric and underscore allowed)",
+		map[string]any{
+			"username": username,
+		},
+	)
 }
 
-func (e ErrInvalidPassword) Unwrap() error {
-	return result.Validation("user.password.validate", e.Reason, nil)
+func ErrUsernameStartsWithNumber() error {
+	return result.Validation(
+		"user.username.validate",
+		"username cannot start with a number",
+		nil,
+	)
 }
 
-// ErrWeakPassword is returned when a password doesn't meet strength requirements.
-type ErrWeakPassword struct {
-	Reason string
+func ErrReservedUsername(username string) error {
+	return result.Validation(
+		"user.username.validate",
+		fmt.Sprintf("username is reserved: %s", username),
+		map[string]any{
+			"username": username,
+		},
+	)
 }
 
-func (e ErrWeakPassword) Error() string {
-	return fmt.Sprintf("weak password: %s", e.Reason)
+// Password validation errors
+func ErrInvalidPassword(reason string) error {
+	return result.Validation(
+		"user.password.validate",
+		reason,
+		nil,
+	)
 }
 
-func (e ErrWeakPassword) Unwrap() error {
-	return result.Validation("user.password.validate", e.Reason, nil)
+func ErrWeakPassword(reason string) error {
+	return result.Validation(
+		"user.password.validate",
+		fmt.Sprintf("weak password: %s", reason),
+		nil,
+	)
 }
 
-// ============================================================================
-// User ID Validation Errors (Kind: KindValidation)
-// ============================================================================
-
-// ErrInvalidUserID is returned when a user ID is invalid.
-type ErrInvalidUserID struct {
-	ID     string
-	Reason string
-}
-
-func (e ErrInvalidUserID) Error() string {
-	return fmt.Sprintf("invalid user id '%s': %s", e.ID, e.Reason)
-}
-
-func (e ErrInvalidUserID) Unwrap() error {
-	return result.Validation("user.id.validate", e.Reason, map[string]any{
-		"id":     e.ID,
-		"reason": e.Reason,
-	})
+// User ID validation errors
+func ErrEmptyUserID() error {
+	return result.Validation("user.user.validate", "user ID cannot be empty", nil)
 }
 
 // ============================================================================
 // Not Found Errors (Kind: KindNotFound)
 // ============================================================================
 
-// ErrUserNotFound is returned when a user cannot be found.
-type ErrUserNotFound struct {
-	ID string
-}
-
-func (e ErrUserNotFound) Error() string {
-	return fmt.Sprintf("user not found: %s", e.ID)
-}
-
-func (e ErrUserNotFound) Unwrap() error {
-	return result.NotFound("user.repository.find", "user")
+func ErrUserNotFound(identifier string) error {
+	return result.NotFound("user.repository.find", "user not found")
 }
 
 // ============================================================================
 // Conflict Errors (Kind: KindConflict)
 // ============================================================================
 
-// ErrEmailAlreadyExists is returned when attempting to create a user with an email that already exists.
-type ErrEmailAlreadyExists struct {
-	Email string
+func ErrEmailAlreadyExists(email string) error {
+	return result.Conflict("user.repository.create", "email already exists")
 }
 
-func (e ErrEmailAlreadyExists) Error() string {
-	return fmt.Sprintf("email already exists: %s", e.Email)
-}
-
-func (e ErrEmailAlreadyExists) Unwrap() error {
-	return result.Conflict("user.repository.create", "email")
-}
-
-// ErrUsernameAlreadyExists is returned when attempting to create a user with a username that already exists.
-type ErrUsernameAlreadyExists struct {
-	Username string
-}
-
-func (e ErrUsernameAlreadyExists) Error() string {
-	return fmt.Sprintf("username already exists: %s", e.Username)
-}
-
-func (e ErrUsernameAlreadyExists) Unwrap() error {
-	return result.Conflict("user.repository.create", "username")
+func ErrUsernameAlreadyExists(username string) error {
+	return result.Conflict("user.repository.create", "username already exists")
 }
 
 // ============================================================================
 // Domain Rule Violations (Kind: KindDomain)
 // ============================================================================
 
-// ErrEmailNotVerified is returned when an operation requires email verification.
-type ErrEmailNotVerified struct {
-	Email string
-}
-
-func (e ErrEmailNotVerified) Error() string {
-	return fmt.Sprintf("email not verified: %s", e.Email)
-}
-
-func (e ErrEmailNotVerified) Unwrap() error {
+func ErrEmailNotVerified(email string) error {
 	return result.Domain("user.verify_email", "email verification required")
 }
 
-// ErrUserInactive is returned when attempting to perform operations on an inactive user.
-type ErrUserInactive struct {
-	ID string
-}
-
-func (e ErrUserInactive) Error() string {
-	return fmt.Sprintf("user is inactive: %s", e.ID)
-}
-
-func (e ErrUserInactive) Unwrap() error {
+func ErrUserInactive(id string) error {
 	return result.Domain("user.check_active", "user is not active")
-}
-
-// ErrUserDeleted is returned when attempting to perform operations on a deleted user.
-type ErrUserDeleted struct {
-	ID string
-}
-
-func (e ErrUserDeleted) Error() string {
-	return fmt.Sprintf("user is deleted: %s", e.ID)
-}
-
-func (e ErrUserDeleted) Unwrap() error {
-	return result.Domain("user.check_deleted", "user has been deleted")
 }
 
 // ============================================================================
 // Authentication Errors (Kind: KindUnauthorized)
 // ============================================================================
 
-// ErrPasswordMismatch is returned when password verification fails.
-type ErrPasswordMismatch struct{}
-
-func (e ErrPasswordMismatch) Error() string {
-	return "password does not match"
-}
-
-func (e ErrPasswordMismatch) Unwrap() error {
+func ErrPasswordMismatch() error {
 	return result.Unauthorized("user.verify_password", "invalid credentials")
 }
