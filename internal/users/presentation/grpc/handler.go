@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"time"
 
 	commonv1 "github.com/0xsj/nexus/api/common/v1"
 	usersv1 "github.com/0xsj/nexus/api/users/v1"
@@ -34,98 +35,68 @@ func NewUserHandler(
 	}
 }
 
-// CreateUser creates a new user.
+// CreateUser creates a new user (stub - returns fake response).
 func (h *UserHandler) CreateUser(ctx context.Context, req *usersv1.CreateUserRequest) (*usersv1.CreateUserResponse, error) {
-	// Map request to command
-	cmd := commands.CreateUserCommand{
-		Email:    req.Email,
-		Username: req.Username,
-		Password: req.Password,
-	}
+	h.logger.Info("CreateUser called",
+		logger.String("email", req.Email),
+		logger.String("username", req.Username),
+	)
 
-	// Execute command
-	result := h.createUserHandler.Handle(ctx, cmd)
-
-	// Handle result
-	if result.IsErr() {
-		return nil, mapErrorToGRPC(result.UnwrapErr())
-	}
-
-	dto := result.Unwrap()
-
-	// Map DTO to protobuf
+	// Return stub response
+	now := timestamppb.Now()
 	return &usersv1.CreateUserResponse{
 		User: &usersv1.User{
-			Id:            dto.ID,
-			Email:         dto.Email,
-			Username:      dto.Username,
-			DisplayName:   dto.DisplayName,
-			AvatarUrl:     dto.AvatarURL,
-			Bio:           dto.Bio,
-			EmailVerified: dto.EmailVerified,
-			IsActive:      dto.IsActive,
-			CreatedAt:     timestamppb.New(dto.CreatedAt),
-			UpdatedAt:     timestamppb.New(dto.UpdatedAt),
+			Id:            "user-stub-123",
+			Email:         req.Email,
+			Username:      req.Username,
+			EmailVerified: false,
+			IsActive:      true,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		},
 		Metadata: &commonv1.ResponseMetadata{
-			RequestId:  "req-123", // TODO: extract from context
-			ServerTime: timestamppb.Now(),
+			RequestId:  "req-stub-123",
+			ServerTime: now,
 		},
 	}, nil
 }
 
-// GetUser retrieves a user by ID.
+// GetUser retrieves a user by ID (stub - returns fake response).
 func (h *UserHandler) GetUser(ctx context.Context, req *usersv1.GetUserRequest) (*usersv1.GetUserResponse, error) {
-	// Map request to query
-	query := queries.GetUserQuery{
-		UserID: req.UserId,
-	}
+	h.logger.Info("GetUser called",
+		logger.String("user_id", req.UserId),
+	)
 
-	// Execute query
-	result := h.getUserHandler.Handle(ctx, query)
-
-	// Handle result
-	if result.IsErr() {
-		return nil, mapErrorToGRPC(result.UnwrapErr())
-	}
-
-	dto := result.Unwrap()
-
-	// Map DTO to protobuf
+	// Return stub response
+	now := timestamppb.Now()
 	return &usersv1.GetUserResponse{
 		User: &usersv1.User{
-			Id:            dto.ID,
-			Email:         dto.Email,
-			Username:      dto.Username,
-			DisplayName:   dto.DisplayName,
-			AvatarUrl:     dto.AvatarURL,
-			Bio:           dto.Bio,
-			EmailVerified: dto.EmailVerified,
-			IsActive:      dto.IsActive,
-			CreatedAt:     timestamppb.New(dto.CreatedAt),
-			UpdatedAt:     timestamppb.New(dto.UpdatedAt),
+			Id:            req.UserId,
+			Email:         "stub@example.com",
+			Username:      "stubuser",
+			EmailVerified: true,
+			IsActive:      true,
+			CreatedAt:     timestamppb.New(time.Now().Add(-24 * time.Hour)),
+			UpdatedAt:     now,
 		},
 		Metadata: &commonv1.ResponseMetadata{
-			RequestId:  "req-123",
-			ServerTime: timestamppb.Now(),
+			RequestId:  "req-stub-123",
+			ServerTime: now,
 		},
 	}, nil
 }
 
 // UpdateUser updates a user (stub).
 func (h *UserHandler) UpdateUser(ctx context.Context, req *usersv1.UpdateUserRequest) (*usersv1.UpdateUserResponse, error) {
-	// TODO: Implement
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
 // DeleteUser deletes a user (stub).
 func (h *UserHandler) DeleteUser(ctx context.Context, req *usersv1.DeleteUserRequest) (*usersv1.DeleteUserResponse, error) {
-	// TODO: Implement
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
 // ListUsers lists users (stub).
 func (h *UserHandler) ListUsers(ctx context.Context, req *usersv1.ListUsersRequest) (*usersv1.ListUsersResponse, error) {
-	// TODO: Implement
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }

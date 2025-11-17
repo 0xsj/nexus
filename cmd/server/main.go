@@ -1,4 +1,3 @@
-// cmd/server/main.go
 package main
 
 import (
@@ -11,51 +10,55 @@ import (
 	"syscall"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
-
-	"github.com/0xsj/nexus/pkg/config"
+	contentv1 "github.com/0xsj/nexus/api/content/v1"
+	usersv1 "github.com/0xsj/nexus/api/users/v1"
+	"github.com/0xsj/nexus/pkg/observability/logger"
 )
 
-// Config holds server configuration
-type Config struct {
-	GRPCPort string
-	HTTPPort string
-	Env      string
-}
-
 func main() {
-	// Load configuration
-	cfg := loadConfig()
+	ctx := context.Background()
 
-	// Setup logging
-	logger := log.New(os.Stdout, "[nexus] ", log.LstdFlags|log.Lshortfile)
-	logger.Printf("Starting Nexus server in %s mode", cfg.Env)
+	// Initialize container with Wire
+	container, err := InitializeContainer(ctx)
+	if err != nil {
+		log.Fatalf("Failed to initialize container: %v", err)
+	}
+	defer container.Close(ctx)
 
-	// Create gRPC server
-	grpcServer := createGRPCServer(logger)
+	log := container.Infrastructure.Logger
+	grpcServer := container.Infrastructure.GRPCServer
 
-	// Register health check service
-	healthServer := health.NewServer()
-	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
-	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	log.Info("Nexus server starting...")
 
-	// Register reflection service (for grpcurl)
-	reflection.Register(grpcServer)
+	// Register gRPC services
+	usersv1.RegisterUserServiceServer(grpcServer, container.UserHandler)
+	contentv1.RegisterContentServiceServer(grpcServer, container.ContentHandler)
+
+	log.Info("gRPC services registered")
 
 	// Start gRPC server
-	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GRPCPort))
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "9090"
+	}
+
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
 	if err != nil {
-		logger.Fatalf("Failed to listen on port %s: %v", cfg.GRPCPort, err)
+		log.Fatal("Failed to listen",
+			logger.Err(err),
+			logger.String("port", grpcPort),
+		)
 	}
 
 	// Start server in goroutine
 	go func() {
-		logger.Printf("gRPC server listening on :%s", cfg.GRPCPort)
-		if err := grpcServer.Serve(grpcListener); err != nil {
-			logger.Fatalf("Failed to serve gRPC: %v", err)
+		log.Info("gRPC server listening",
+			logger.String("port", grpcPort),
+		)
+		if err := grpcServer.Serve(listener); err != nil {
+			log.Fatal("Failed to serve gRPC",
+				logger.Err(err),
+			)
 		}
 	}()
 
@@ -64,16 +67,12 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Println("Shutting down server...")
+	log.Info("Shutting down server...")
 
 	// Graceful shutdown
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Mark health check as not serving
-	healthServer.Shutdown()
-
-	// Stop accepting new connections and wait for existing ones to finish
 	stopped := make(chan struct{})
 	go func() {
 		grpcServer.GracefulStop()
@@ -82,53 +81,9 @@ func main() {
 
 	select {
 	case <-shutdownCtx.Done():
-		logger.Println("Shutdown timeout, forcing stop...")
+		log.Warn("Shutdown timeout, forcing stop...")
 		grpcServer.Stop()
 	case <-stopped:
-		logger.Println("Server stopped gracefully")
-	}
-}
-
-func loadConfig() Config {
-	return Config{
-		GRPCPort: config.GetEnv("GRPC_PORT", "9090"),
-		HTTPPort: config.GetEnv("HTTP_PORT", "8080"),
-		Env:      config.GetEnv("ENV", "development"),
-	}
-}
-
-func createGRPCServer(logger *log.Logger) *grpc.Server {
-	// Create server with interceptors for logging, auth, etc.
-	opts := []grpc.ServerOption{
-		grpc.ChainUnaryInterceptor(
-			loggingInterceptor(logger),
-		),
-	}
-
-	return grpc.NewServer(opts...)
-}
-
-// loggingInterceptor logs all gRPC requests
-func loggingInterceptor(logger *log.Logger) grpc.UnaryServerInterceptor {
-	return func(
-		ctx context.Context,
-		req interface{},
-		info *grpc.UnaryServerInfo,
-		handler grpc.UnaryHandler,
-	) (interface{}, error) {
-		start := time.Now()
-
-		// Call the handler
-		resp, err := handler(ctx, req)
-
-		// Log the request
-		duration := time.Since(start)
-		if err != nil {
-			logger.Printf("RPC: %s | Duration: %v | Error: %v", info.FullMethod, duration, err)
-		} else {
-			logger.Printf("RPC: %s | Duration: %v | Success", info.FullMethod, duration)
-		}
-
-		return resp, err
+		log.Info("Server stopped gracefully")
 	}
 }
