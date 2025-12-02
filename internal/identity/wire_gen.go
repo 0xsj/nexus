@@ -7,13 +7,15 @@
 package identity
 
 import (
+	"os"
+
 	"github.com/0xsj/nexus-go/internal/identity/application/command"
 	"github.com/0xsj/nexus-go/internal/identity/application/query"
 	"github.com/0xsj/nexus-go/internal/identity/domain/oauth"
 	"github.com/0xsj/nexus-go/internal/identity/domain/session"
 	"github.com/0xsj/nexus-go/internal/identity/domain/user"
 	"github.com/0xsj/nexus-go/internal/identity/infrastructure/repository"
-	"github.com/0xsj/nexus-go/internal/identity/interface/http/v1"
+	v1 "github.com/0xsj/nexus-go/internal/identity/interface/http/v1"
 	"github.com/0xsj/nexus-go/pkg/cache"
 	"github.com/0xsj/nexus-go/pkg/database"
 	"github.com/0xsj/nexus-go/pkg/messaging"
@@ -23,7 +25,6 @@ import (
 	"github.com/0xsj/nexus-go/pkg/observability/logger"
 	"github.com/0xsj/nexus-go/pkg/security/jwt"
 	"github.com/google/wire"
-	"os"
 )
 
 // Injectors from provider.go:

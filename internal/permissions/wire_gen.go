@@ -11,7 +11,7 @@ import (
 	"github.com/0xsj/nexus-go/internal/permissions/application/query"
 	"github.com/0xsj/nexus-go/internal/permissions/domain"
 	"github.com/0xsj/nexus-go/internal/permissions/infrastructure/repository"
-	"github.com/0xsj/nexus-go/internal/permissions/interface/http/v1"
+	v1 "github.com/0xsj/nexus-go/internal/permissions/interface/http/v1"
 	"github.com/0xsj/nexus-go/pkg/database"
 	"github.com/0xsj/nexus-go/pkg/http/middleware"
 	"github.com/0xsj/nexus-go/pkg/messaging"

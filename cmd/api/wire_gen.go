@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/0xsj/nexus-go/cmd/api/config"
 	query6 "github.com/0xsj/nexus-go/internal/audit/application/query"
 	"github.com/0xsj/nexus-go/internal/audit/application/subscriber"
@@ -27,7 +28,7 @@ import (
 	"github.com/0xsj/nexus-go/internal/identity/application/command"
 	"github.com/0xsj/nexus-go/internal/identity/application/query"
 	"github.com/0xsj/nexus-go/internal/identity/infrastructure/repository"
-	"github.com/0xsj/nexus-go/internal/identity/interface/http/v1"
+	v1 "github.com/0xsj/nexus-go/internal/identity/interface/http/v1"
 	"github.com/0xsj/nexus-go/internal/notifications/application/jobs"
 	subscriber2 "github.com/0xsj/nexus-go/internal/notifications/application/subscriber"
 	command5 "github.com/0xsj/nexus-go/internal/permissions/application/command"
@@ -50,9 +51,7 @@ import (
 	"github.com/0xsj/nexus-go/pkg/security/jwt"
 	"github.com/0xsj/nexus-go/pkg/storage"
 	"github.com/0xsj/nexus-go/pkg/worker/postgres"
-)
 
-import (
 	_ "github.com/0xsj/nexus-go/docs/swagger"
 )
 

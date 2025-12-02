@@ -12,7 +12,7 @@ import (
 	"github.com/0xsj/nexus-go/internal/flags/domain"
 	"github.com/0xsj/nexus-go/internal/flags/infrastructure/repository"
 	"github.com/0xsj/nexus-go/internal/flags/interface/http/admin"
-	"github.com/0xsj/nexus-go/internal/flags/interface/http/v1"
+	v1 "github.com/0xsj/nexus-go/internal/flags/interface/http/v1"
 	"github.com/0xsj/nexus-go/pkg/database"
 	"github.com/0xsj/nexus-go/pkg/messaging"
 	"github.com/0xsj/nexus-go/pkg/observability/logger"

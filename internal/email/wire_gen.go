@@ -11,7 +11,7 @@ import (
 	"github.com/0xsj/nexus-go/internal/email/application/query"
 	"github.com/0xsj/nexus-go/internal/email/domain"
 	"github.com/0xsj/nexus-go/internal/email/infrastructure/repository"
-	"github.com/0xsj/nexus-go/internal/email/interface/http/v1"
+	v1 "github.com/0xsj/nexus-go/internal/email/interface/http/v1"
 	"github.com/0xsj/nexus-go/pkg/database"
 	"github.com/0xsj/nexus-go/pkg/email"
 	"github.com/0xsj/nexus-go/pkg/messaging"

@@ -9,9 +9,9 @@ package tenant
 import (
 	"github.com/0xsj/nexus-go/internal/tenant/application/command"
 	"github.com/0xsj/nexus-go/internal/tenant/application/query"
-	"github.com/0xsj/nexus-go/internal/tenant/domain"
+	tenant "github.com/0xsj/nexus-go/internal/tenant/domain"
 	"github.com/0xsj/nexus-go/internal/tenant/infrastructure/repository"
-	"github.com/0xsj/nexus-go/internal/tenant/interface/http/v1"
+	v1 "github.com/0xsj/nexus-go/internal/tenant/interface/http/v1"
 	"github.com/0xsj/nexus-go/pkg/database"
 	"github.com/0xsj/nexus-go/pkg/messaging"
 	"github.com/0xsj/nexus-go/pkg/observability/logger"
