@@ -3,8 +3,8 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/internal/email/application/dto"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/internal/email/application/dto"
+	"github.com/0xsj/nexus-go/pkg/http/response"
 )
 
 // RespondWithTemplate writes a single template response.

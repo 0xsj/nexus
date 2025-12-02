@@ -3,10 +3,10 @@ package command
 import (
 	"context"
 
-	"github.com/0xsj/hexagonal-go/internal/permissions/domain"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/permissions/domain"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // DeleteRoleRequest represents the input for deleting a role.

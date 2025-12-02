@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/pkg/types"
 	"github.com/go-chi/chi/v5"
 )
 

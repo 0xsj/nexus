@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/notifications/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/notifications/domain"
-	"github.com/0xsj/hexagonal-go/pkg/email"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/internal/notifications/application/dto"
+	"github.com/0xsj/nexus-go/internal/notifications/domain"
+	"github.com/0xsj/nexus-go/pkg/email"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // SendNotificationCommand handles sending notifications.

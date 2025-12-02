@@ -3,9 +3,9 @@ package flags
 import (
 	"context"
 
-	"github.com/0xsj/hexagonal-go/internal/flags/domain"
-	"github.com/0xsj/hexagonal-go/internal/flags/infrastructure/repository"
-	"github.com/0xsj/hexagonal-go/pkg/database"
+	"github.com/0xsj/nexus-go/internal/flags/domain"
+	"github.com/0xsj/nexus-go/internal/flags/infrastructure/repository"
+	"github.com/0xsj/nexus-go/pkg/database"
 )
 
 // ============================================================================

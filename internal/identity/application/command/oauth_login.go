@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/auth"
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/oauth"
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/session"
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/user"
-	pkgerrors "github.com/0xsj/hexagonal-go/pkg/errors"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	pkgoauth "github.com/0xsj/hexagonal-go/pkg/oauth"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/security/jwt"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/identity/application/dto"
+	"github.com/0xsj/nexus-go/internal/identity/domain/auth"
+	"github.com/0xsj/nexus-go/internal/identity/domain/oauth"
+	"github.com/0xsj/nexus-go/internal/identity/domain/session"
+	"github.com/0xsj/nexus-go/internal/identity/domain/user"
+	pkgerrors "github.com/0xsj/nexus-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	pkgoauth "github.com/0xsj/nexus-go/pkg/oauth"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/security/jwt"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // OAuthLoginCommand handles OAuth login (creates user if needed).

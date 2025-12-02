@@ -1,7 +1,7 @@
 package user
 
 import (
-	"github.com/0xsj/hexagonal-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/errors"
 )
 
 // Domain-specific error codes for the User aggregate.

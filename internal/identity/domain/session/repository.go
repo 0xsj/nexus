@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Repository is the port for session persistence.

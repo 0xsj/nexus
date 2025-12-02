@@ -3,7 +3,7 @@ package response
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/errors"
 )
 
 // ErrorResponse represents a standard error response structure.

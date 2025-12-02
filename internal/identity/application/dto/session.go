@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/session"
+	"github.com/0xsj/nexus-go/internal/identity/domain/session"
 )
 
 // SessionDTO represents a session for API responses.

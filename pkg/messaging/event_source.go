@@ -3,7 +3,7 @@ package messaging
 import (
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // DomainEvent is the minimal interface that all domain events must satisfy.

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // Repository defines the interface for flag data access.

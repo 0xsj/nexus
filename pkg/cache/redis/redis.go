@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/cache"
+	"github.com/0xsj/nexus-go/pkg/cache"
 	"github.com/redis/go-redis/v9"
 )
 

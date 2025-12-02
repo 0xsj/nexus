@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // AuditEntry represents a record of an event that occurred in the system.

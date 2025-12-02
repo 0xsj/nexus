@@ -1,7 +1,7 @@
 package domain
 
 import (
-	pkgerrors "github.com/0xsj/hexagonal-go/pkg/errors"
+	pkgerrors "github.com/0xsj/nexus-go/pkg/errors"
 )
 
 // Domain error codes for email templates.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/pkg/observability/tracing"
+	"github.com/0xsj/nexus-go/pkg/observability/tracing"
 )
 
 // Tracing returns middleware that creates spans for HTTP requests.

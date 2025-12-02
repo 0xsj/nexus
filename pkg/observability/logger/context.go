@@ -3,7 +3,7 @@ package logger
 import (
 	"context"
 
-	pkgcontext "github.com/0xsj/hexagonal-go/pkg/context"
+	pkgcontext "github.com/0xsj/nexus-go/pkg/context"
 )
 
 // ExtractContextFields extracts logging fields from context.

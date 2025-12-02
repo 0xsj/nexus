@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/audit/domain"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/audit/domain"
+	"github.com/0xsj/nexus-go/pkg/database"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // PostgresRepository is a PostgreSQL implementation of domain.Repository.

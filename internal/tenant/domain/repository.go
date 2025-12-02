@@ -3,7 +3,7 @@ package tenant
 import (
 	"context"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Repository defines the persistence port for the Tenant aggregate.

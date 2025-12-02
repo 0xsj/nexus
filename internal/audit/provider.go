@@ -4,11 +4,11 @@ package audit
 import (
 	"github.com/google/wire"
 
-	"github.com/0xsj/hexagonal-go/internal/audit/application/query"
-	"github.com/0xsj/hexagonal-go/internal/audit/application/subscriber"
-	"github.com/0xsj/hexagonal-go/internal/audit/domain"
-	"github.com/0xsj/hexagonal-go/internal/audit/infrastructure/repository"
-	v1 "github.com/0xsj/hexagonal-go/internal/audit/interface/http/v1"
+	"github.com/0xsj/nexus-go/internal/audit/application/query"
+	"github.com/0xsj/nexus-go/internal/audit/application/subscriber"
+	"github.com/0xsj/nexus-go/internal/audit/domain"
+	"github.com/0xsj/nexus-go/internal/audit/infrastructure/repository"
+	v1 "github.com/0xsj/nexus-go/internal/audit/interface/http/v1"
 )
 
 // AuditSet provides all dependencies for the Audit domain.

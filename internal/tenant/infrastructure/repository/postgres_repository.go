@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	tenant "github.com/0xsj/hexagonal-go/internal/tenant/domain"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	tenant "github.com/0xsj/nexus-go/internal/tenant/domain"
+	"github.com/0xsj/nexus-go/pkg/database"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // PostgresRepository implements tenant.Repository using PostgreSQL.

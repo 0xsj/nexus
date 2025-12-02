@@ -4,8 +4,8 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/pkg/errors"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/http/response"
 )
 
 // HandleError writes an error response with the appropriate HTTP status code.

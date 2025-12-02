@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/permissions/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/permissions/domain"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/permissions/application/dto"
+	"github.com/0xsj/nexus-go/internal/permissions/domain"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // AssignRoleRequest represents the input for assigning a role.

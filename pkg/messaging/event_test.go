@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/messaging"
 	"github.com/stretchr/testify/assert"
 )
 

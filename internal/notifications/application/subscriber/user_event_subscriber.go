@@ -5,11 +5,11 @@
 // 	"fmt"
 // 	"time"
 
-// 	"github.com/0xsj/hexagonal-go/internal/notifications/application/command"
-// 	"github.com/0xsj/hexagonal-go/internal/notifications/application/dto"
-// 	"github.com/0xsj/hexagonal-go/pkg/email"
-// 	"github.com/0xsj/hexagonal-go/pkg/messaging"
-// 	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+// 	"github.com/0xsj/nexus-go/internal/notifications/application/command"
+// 	"github.com/0xsj/nexus-go/internal/notifications/application/dto"
+// 	"github.com/0xsj/nexus-go/pkg/email"
+// 	"github.com/0xsj/nexus-go/pkg/messaging"
+// 	"github.com/0xsj/nexus-go/pkg/observability/logger"
 // )
 
 // // Template slugs for email templates.
@@ -701,11 +701,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/notifications/application/jobs"
-	"github.com/0xsj/hexagonal-go/pkg/email"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/worker"
+	"github.com/0xsj/nexus-go/internal/notifications/application/jobs"
+	"github.com/0xsj/nexus-go/pkg/email"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/worker"
 )
 
 // Template slugs for email templates.

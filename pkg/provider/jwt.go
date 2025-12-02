@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/0xsj/hexagonal-go/pkg/security/jwt"
+	"github.com/0xsj/nexus-go/pkg/security/jwt"
 )
 
 // ProvideJWTService creates a JWT service.

@@ -1,7 +1,7 @@
 // internal/email/application/dto/mappers.go
 package dto
 
-import "github.com/0xsj/hexagonal-go/internal/email/domain"
+import "github.com/0xsj/nexus-go/internal/email/domain"
 
 // MapTemplateToDTO maps a domain template to a DTO.
 func MapTemplateToDTO(t *domain.Template) TemplateDTO {

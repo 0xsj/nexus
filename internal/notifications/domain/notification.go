@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Notification represents an outbound notification.

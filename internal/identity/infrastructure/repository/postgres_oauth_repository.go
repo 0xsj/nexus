@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/oauth"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	pkgerrors "github.com/0xsj/hexagonal-go/pkg/errors"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/identity/domain/oauth"
+	"github.com/0xsj/nexus-go/pkg/database"
+	pkgerrors "github.com/0xsj/nexus-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // PostgresOAuthRepository is a PostgreSQL implementation of oauth.Repository.

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // Logger is a colorized console logger for development.

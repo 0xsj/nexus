@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/flags/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/flags/domain"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/flags/application/dto"
+	"github.com/0xsj/nexus-go/internal/flags/domain"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // AddRuleCommand handles adding a targeting rule to a feature flag.

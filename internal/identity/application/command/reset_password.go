@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/user"
-	"github.com/0xsj/hexagonal-go/internal/identity/infrastructure/repository"
-	pkgerrors "github.com/0xsj/hexagonal-go/pkg/errors"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/internal/identity/domain/user"
+	"github.com/0xsj/nexus-go/internal/identity/infrastructure/repository"
+	pkgerrors "github.com/0xsj/nexus-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // ResetPasswordCommand handles password reset with token.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Account represents an OAuth account linked to a user.

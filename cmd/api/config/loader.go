@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	pkgconfig "github.com/0xsj/hexagonal-go/pkg/config"
+	pkgconfig "github.com/0xsj/nexus-go/pkg/config"
 )
 
 // Load loads application configuration from environment variables.

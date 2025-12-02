@@ -1,4 +1,4 @@
-module github.com/0xsj/hexagonal-go
+module github.com/0xsj/nexus-go
 
 go 1.25.4
 

@@ -1,9 +1,9 @@
 package provider
 
 import (
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/messaging/memory"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/messaging/memory"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // ProvideEventBus creates an in-memory event bus.

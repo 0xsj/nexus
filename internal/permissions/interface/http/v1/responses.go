@@ -3,8 +3,8 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/internal/permissions/application/dto"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/internal/permissions/application/dto"
+	"github.com/0xsj/nexus-go/pkg/http/response"
 )
 
 // RespondWithRole writes a role DTO as JSON response.

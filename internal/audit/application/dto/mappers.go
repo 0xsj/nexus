@@ -2,8 +2,8 @@
 package dto
 
 import (
-	"github.com/0xsj/hexagonal-go/internal/audit/domain"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/audit/domain"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // ============================================================================

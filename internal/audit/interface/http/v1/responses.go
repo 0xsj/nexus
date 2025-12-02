@@ -4,8 +4,8 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/internal/audit/application/dto"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/internal/audit/application/dto"
+	"github.com/0xsj/nexus-go/pkg/http/response"
 )
 
 // RespondWithEntry writes an audit entry DTO as JSON response.

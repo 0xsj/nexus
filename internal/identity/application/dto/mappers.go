@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/user"
+	"github.com/0xsj/nexus-go/internal/identity/domain/user"
 )
 
 // MapUserToDTO maps a domain user to a DTO.

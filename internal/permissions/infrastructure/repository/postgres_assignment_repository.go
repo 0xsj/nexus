@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/permissions/domain"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/permissions/domain"
+	"github.com/0xsj/nexus-go/pkg/database"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // PostgresAssignmentRepository is a PostgreSQL implementation of domain.AssignmentRepository.

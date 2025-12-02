@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/0xsj/hexagonal-go/internal/audit/application/dto"
+	"github.com/0xsj/nexus-go/internal/audit/application/dto"
 )
 
 // ============================================================================

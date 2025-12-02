@@ -3,8 +3,8 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/internal/flags/application/dto"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/internal/flags/application/dto"
+	"github.com/0xsj/nexus-go/pkg/http/response"
 )
 
 // RespondWithFlag writes a single flag response.

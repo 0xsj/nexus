@@ -7,13 +7,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/0xsj/hexagonal-go/internal/email/application/command"
-	"github.com/0xsj/hexagonal-go/internal/email/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/email/application/query"
-	"github.com/0xsj/hexagonal-go/pkg/http/middleware"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/email/application/command"
+	"github.com/0xsj/nexus-go/internal/email/application/dto"
+	"github.com/0xsj/nexus-go/internal/email/application/query"
+	"github.com/0xsj/nexus-go/pkg/http/middleware"
+	"github.com/0xsj/nexus-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Handler handles HTTP requests for email templates.

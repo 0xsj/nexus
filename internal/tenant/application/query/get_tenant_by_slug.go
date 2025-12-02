@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/tenant/application/dto"
-	tenant "github.com/0xsj/hexagonal-go/internal/tenant/domain"
+	"github.com/0xsj/nexus-go/internal/tenant/application/dto"
+	tenant "github.com/0xsj/nexus-go/internal/tenant/domain"
 )
 
 // GetTenantBySlugQuery handles fetching a tenant by slug.

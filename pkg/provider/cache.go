@@ -3,8 +3,8 @@ package provider
 import (
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/pkg/cache"
-	"github.com/0xsj/hexagonal-go/pkg/cache/redis"
+	"github.com/0xsj/nexus-go/pkg/cache"
+	"github.com/0xsj/nexus-go/pkg/cache/redis"
 	goredis "github.com/redis/go-redis/v9"
 )
 

@@ -1,14 +1,14 @@
 package config
 
 import (
-	"github.com/0xsj/hexagonal-go/pkg/cache"
-	"github.com/0xsj/hexagonal-go/pkg/database/postgres"
-	"github.com/0xsj/hexagonal-go/pkg/email"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger/console"
-	"github.com/0xsj/hexagonal-go/pkg/observability/metrics"
-	"github.com/0xsj/hexagonal-go/pkg/observability/tracing"
-	"github.com/0xsj/hexagonal-go/pkg/security/jwt"
-	"github.com/0xsj/hexagonal-go/pkg/storage"
+	"github.com/0xsj/nexus-go/pkg/cache"
+	"github.com/0xsj/nexus-go/pkg/database/postgres"
+	"github.com/0xsj/nexus-go/pkg/email"
+	"github.com/0xsj/nexus-go/pkg/observability/logger/console"
+	"github.com/0xsj/nexus-go/pkg/observability/metrics"
+	"github.com/0xsj/nexus-go/pkg/observability/tracing"
+	"github.com/0xsj/nexus-go/pkg/security/jwt"
+	"github.com/0xsj/nexus-go/pkg/storage"
 )
 
 type AppConfig struct {

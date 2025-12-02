@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/email"
+	"github.com/0xsj/nexus-go/pkg/email"
 )
 
 // Sender is an SMTP implementation of email.Sender.

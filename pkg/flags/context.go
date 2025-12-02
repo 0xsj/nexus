@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
-	"github.com/0xsj/hexagonal-go/pkg/http/middleware"
+	"github.com/0xsj/nexus-go/pkg/http/middleware"
 )
 
 // EvaluationContext holds the context for flag evaluation.

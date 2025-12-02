@@ -3,10 +3,10 @@ package provider
 import (
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	"github.com/0xsj/hexagonal-go/pkg/database/postgres"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger/console"
+	"github.com/0xsj/nexus-go/pkg/database"
+	"github.com/0xsj/nexus-go/pkg/database/postgres"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/observability/logger/console"
 )
 
 // ProvideLogger creates and configures the application logger.

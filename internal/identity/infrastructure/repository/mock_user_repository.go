@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/user"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/identity/domain/user"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // MockUserRepository is an in-memory implementation of user.Repository.

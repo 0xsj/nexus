@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/0xsj/hexagonal-go/internal/flags/domain"
+import "github.com/0xsj/nexus-go/internal/flags/domain"
 
 // MapFlagToDTO converts a domain Flag to a FlagDTO.
 func MapFlagToDTO(flag *domain.Flag) *FlagDTO {

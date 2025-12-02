@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 
-	"github.com/0xsj/hexagonal-go/pkg/storage"
+	"github.com/0xsj/nexus-go/pkg/storage"
 )
 
 // Storage implements the storage.Storage interface using S3/MinIO

@@ -3,8 +3,8 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/internal/tenant/application/dto"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/internal/tenant/application/dto"
+	"github.com/0xsj/nexus-go/pkg/http/response"
 )
 
 // RespondWithTenant writes a tenant DTO as JSON response.

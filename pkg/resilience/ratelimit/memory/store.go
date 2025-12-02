@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/resilience/ratelimit"
+	"github.com/0xsj/nexus-go/pkg/resilience/ratelimit"
 )
 
 // Store is an in-memory implementation of ratelimit.Store.

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	pkgtypes "github.com/0xsj/hexagonal-go/pkg/types"
+	pkgtypes "github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Email represents a user's email address in the identity domain.

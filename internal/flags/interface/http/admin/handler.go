@@ -6,11 +6,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/0xsj/hexagonal-go/internal/flags/application/command"
-	"github.com/0xsj/hexagonal-go/internal/flags/application/query"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/templates"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/flags/application/command"
+	"github.com/0xsj/nexus-go/internal/flags/application/query"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/templates"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 //go:embed templates/*.html

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/cache"
-	"github.com/0xsj/hexagonal-go/pkg/resilience/ratelimit"
+	"github.com/0xsj/nexus-go/pkg/cache"
+	"github.com/0xsj/nexus-go/pkg/resilience/ratelimit"
 )
 
 // Store is a Redis-backed implementation of ratelimit.Store.

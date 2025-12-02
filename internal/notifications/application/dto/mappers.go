@@ -1,7 +1,7 @@
 // internal/notifications/application/dto/mappers.go
 package dto
 
-import "github.com/0xsj/hexagonal-go/internal/notifications/domain"
+import "github.com/0xsj/nexus-go/internal/notifications/domain"
 
 // MapNotificationToDTO maps a domain notification to a DTO.
 func MapNotificationToDTO(n *domain.Notification) *NotificationDTO {

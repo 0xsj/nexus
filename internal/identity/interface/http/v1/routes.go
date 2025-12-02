@@ -1,9 +1,9 @@
 package v1
 
 import (
-	"github.com/0xsj/hexagonal-go/pkg/http/middleware"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/security/jwt"
+	"github.com/0xsj/nexus-go/pkg/http/middleware"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/security/jwt"
 	"github.com/go-chi/chi/v5"
 )
 

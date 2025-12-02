@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/flags/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/flags/domain"
+	"github.com/0xsj/nexus-go/internal/flags/application/dto"
+	"github.com/0xsj/nexus-go/internal/flags/domain"
 )
 
 // ListFlagsQuery handles fetching a list of feature flags.

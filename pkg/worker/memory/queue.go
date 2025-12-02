@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
-	"github.com/0xsj/hexagonal-go/pkg/worker"
+	"github.com/0xsj/nexus-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/worker"
 )
 
 // Queue is an in-memory implementation of worker.Queue.

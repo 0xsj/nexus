@@ -7,15 +7,15 @@
 package permissions
 
 import (
-	"github.com/0xsj/hexagonal-go/internal/permissions/application/command"
-	"github.com/0xsj/hexagonal-go/internal/permissions/application/query"
-	"github.com/0xsj/hexagonal-go/internal/permissions/domain"
-	"github.com/0xsj/hexagonal-go/internal/permissions/infrastructure/repository"
-	v1 "github.com/0xsj/hexagonal-go/internal/permissions/interface/http/v1"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	"github.com/0xsj/hexagonal-go/pkg/http/middleware"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/internal/permissions/application/command"
+	"github.com/0xsj/nexus-go/internal/permissions/application/query"
+	"github.com/0xsj/nexus-go/internal/permissions/domain"
+	"github.com/0xsj/nexus-go/internal/permissions/infrastructure/repository"
+	"github.com/0xsj/nexus-go/internal/permissions/interface/http/v1"
+	"github.com/0xsj/nexus-go/pkg/database"
+	"github.com/0xsj/nexus-go/pkg/http/middleware"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 	"github.com/google/wire"
 )
 

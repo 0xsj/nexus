@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/messaging/memory"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/messaging/memory"
 	"github.com/stretchr/testify/assert"
 )
 

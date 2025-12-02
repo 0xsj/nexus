@@ -3,12 +3,12 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/internal/permissions/application/command"
-	"github.com/0xsj/hexagonal-go/internal/permissions/application/query"
-	"github.com/0xsj/hexagonal-go/pkg/http/middleware"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/permissions/application/command"
+	"github.com/0xsj/nexus-go/internal/permissions/application/query"
+	"github.com/0xsj/nexus-go/pkg/http/middleware"
+	"github.com/0xsj/nexus-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Handler handles HTTP requests for the Permissions domain (v1 API).

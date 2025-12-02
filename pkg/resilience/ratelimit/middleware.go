@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/pkg/errors"
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // Middleware provides HTTP middleware for rate limiting.

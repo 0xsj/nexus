@@ -1,7 +1,7 @@
 // internal/permissions/application/dto/mappers.go
 package dto
 
-import "github.com/0xsj/hexagonal-go/internal/permissions/domain"
+import "github.com/0xsj/nexus-go/internal/permissions/domain"
 
 // RoleToDTO converts a domain Role to RoleDTO.
 func RoleToDTO(role *domain.Role) RoleDTO {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/email/domain"
-	"github.com/0xsj/hexagonal-go/pkg/email"
+	"github.com/0xsj/nexus-go/internal/email/domain"
+	"github.com/0xsj/nexus-go/pkg/email"
 )
 
 // TemplateRepositoryAdapter adapts PostgresRepository to implement pkg/email.TemplateRepository.

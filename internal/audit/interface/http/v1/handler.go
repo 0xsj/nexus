@@ -4,8 +4,8 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/internal/audit/application/query"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/internal/audit/application/query"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // Handler handles HTTP requests for the Audit domain (v1 API).

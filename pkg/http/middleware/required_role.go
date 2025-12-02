@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // RequireRole is middleware that requires a specific role.

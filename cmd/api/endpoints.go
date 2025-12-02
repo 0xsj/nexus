@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger/console"
+	"github.com/0xsj/nexus-go/pkg/observability/logger/console"
 	"github.com/go-chi/chi/v5"
 )
 

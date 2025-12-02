@@ -3,8 +3,8 @@ package provider
 import (
 	"context"
 
-	"github.com/0xsj/hexagonal-go/pkg/observability/tracing"
-	"github.com/0xsj/hexagonal-go/pkg/observability/tracing/otel"
+	"github.com/0xsj/nexus-go/pkg/observability/tracing"
+	"github.com/0xsj/nexus-go/pkg/observability/tracing/otel"
 )
 
 // ProvideTracingProvider creates an OpenTelemetry tracing provider.

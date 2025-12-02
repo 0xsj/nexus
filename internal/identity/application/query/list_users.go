@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/user"
+	"github.com/0xsj/nexus-go/internal/identity/application/dto"
+	"github.com/0xsj/nexus-go/internal/identity/domain/user"
 )
 
 // ListUsersQuery handles retrieving a paginated list of users.

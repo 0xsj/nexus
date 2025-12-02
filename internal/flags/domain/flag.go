@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Flag is the aggregate root for feature flags.

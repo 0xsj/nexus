@@ -6,15 +6,15 @@ package email
 import (
 	"github.com/google/wire"
 
-	"github.com/0xsj/hexagonal-go/internal/email/application/command"
-	"github.com/0xsj/hexagonal-go/internal/email/application/query"
-	"github.com/0xsj/hexagonal-go/internal/email/domain"
-	"github.com/0xsj/hexagonal-go/internal/email/infrastructure/repository"
-	v1 "github.com/0xsj/hexagonal-go/internal/email/interface/http/v1"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	"github.com/0xsj/hexagonal-go/pkg/email"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/internal/email/application/command"
+	"github.com/0xsj/nexus-go/internal/email/application/query"
+	"github.com/0xsj/nexus-go/internal/email/domain"
+	"github.com/0xsj/nexus-go/internal/email/infrastructure/repository"
+	v1 "github.com/0xsj/nexus-go/internal/email/interface/http/v1"
+	"github.com/0xsj/nexus-go/pkg/database"
+	"github.com/0xsj/nexus-go/pkg/email"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // EmailSet provides all dependencies for the Email domain.

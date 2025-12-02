@@ -1,8 +1,8 @@
 package provider
 
 import (
-	"github.com/0xsj/hexagonal-go/pkg/observability/metrics"
-	"github.com/0xsj/hexagonal-go/pkg/observability/metrics/prometheus"
+	"github.com/0xsj/nexus-go/pkg/observability/metrics"
+	"github.com/0xsj/nexus-go/pkg/observability/metrics/prometheus"
 )
 
 // ProvideMetricsProvider creates a Prometheus metrics provider.

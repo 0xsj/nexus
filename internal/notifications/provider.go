@@ -3,10 +3,10 @@ package notifications
 import (
 	"github.com/google/wire"
 
-	"github.com/0xsj/hexagonal-go/internal/notifications/application/jobs"
-	"github.com/0xsj/hexagonal-go/internal/notifications/application/subscriber"
-	"github.com/0xsj/hexagonal-go/internal/notifications/domain"
-	"github.com/0xsj/hexagonal-go/internal/notifications/infrastructure/repository"
+	"github.com/0xsj/nexus-go/internal/notifications/application/jobs"
+	"github.com/0xsj/nexus-go/internal/notifications/application/subscriber"
+	"github.com/0xsj/nexus-go/internal/notifications/domain"
+	"github.com/0xsj/nexus-go/internal/notifications/infrastructure/repository"
 )
 
 // NotificationsSet provides all dependencies for the Notifications domain.

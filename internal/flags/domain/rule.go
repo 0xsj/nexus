@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // RuleType defines the type of targeting rule.

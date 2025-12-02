@@ -1,7 +1,7 @@
 package dto
 
 import (
-	tenant "github.com/0xsj/hexagonal-go/internal/tenant/domain"
+	tenant "github.com/0xsj/nexus-go/internal/tenant/domain"
 )
 
 // ToTenantDTO maps a domain Tenant to a TenantDTO.

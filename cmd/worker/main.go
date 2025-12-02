@@ -7,16 +7,16 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/0xsj/hexagonal-go/cmd/worker/config"
-	notificationjobs "github.com/0xsj/hexagonal-go/internal/notifications/application/jobs"
-	"github.com/0xsj/hexagonal-go/pkg/database/postgres"
-	"github.com/0xsj/hexagonal-go/pkg/email"
-	"github.com/0xsj/hexagonal-go/pkg/email/smtp"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger/console"
-	"github.com/0xsj/hexagonal-go/pkg/worker"
-	"github.com/0xsj/hexagonal-go/pkg/worker/memory"
-	postgresqueue "github.com/0xsj/hexagonal-go/pkg/worker/postgres"
+	"github.com/0xsj/nexus-go/cmd/worker/config"
+	notificationjobs "github.com/0xsj/nexus-go/internal/notifications/application/jobs"
+	"github.com/0xsj/nexus-go/pkg/database/postgres"
+	"github.com/0xsj/nexus-go/pkg/email"
+	"github.com/0xsj/nexus-go/pkg/email/smtp"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/observability/logger/console"
+	"github.com/0xsj/nexus-go/pkg/worker"
+	"github.com/0xsj/nexus-go/pkg/worker/memory"
+	postgresqueue "github.com/0xsj/nexus-go/pkg/worker/postgres"
 )
 
 func main() {

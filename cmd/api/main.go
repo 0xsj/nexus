@@ -43,18 +43,18 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/0xsj/hexagonal-go/cmd/api/config"
-	emailv1 "github.com/0xsj/hexagonal-go/internal/email/interface/http/v1"
-	"github.com/0xsj/hexagonal-go/internal/flags/interface/http/admin"
-	flagsv1 "github.com/0xsj/hexagonal-go/internal/flags/interface/http/v1"
-	tenantv1 "github.com/0xsj/hexagonal-go/internal/tenant/interface/http/v1"
-	pkghttp "github.com/0xsj/hexagonal-go/pkg/http"
-	"github.com/0xsj/hexagonal-go/pkg/http/middleware"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/openapi"
+	"github.com/0xsj/nexus-go/cmd/api/config"
+	emailv1 "github.com/0xsj/nexus-go/internal/email/interface/http/v1"
+	"github.com/0xsj/nexus-go/internal/flags/interface/http/admin"
+	flagsv1 "github.com/0xsj/nexus-go/internal/flags/interface/http/v1"
+	tenantv1 "github.com/0xsj/nexus-go/internal/tenant/interface/http/v1"
+	pkghttp "github.com/0xsj/nexus-go/pkg/http"
+	"github.com/0xsj/nexus-go/pkg/http/middleware"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/openapi"
 
-	_ "github.com/0xsj/hexagonal-go/docs/swagger" // swagger docs
+	_ "github.com/0xsj/nexus-go/docs/swagger" // swagger docs
 )
 
 func main() {

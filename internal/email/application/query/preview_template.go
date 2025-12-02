@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/email/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/email/domain"
-	"github.com/0xsj/hexagonal-go/pkg/email"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/email/application/dto"
+	"github.com/0xsj/nexus-go/internal/email/domain"
+	"github.com/0xsj/nexus-go/pkg/email"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // PreviewTemplateQuery handles rendering a template preview.

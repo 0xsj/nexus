@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/observability/metrics"
+	"github.com/0xsj/nexus-go/pkg/observability/metrics"
 )
 
 // HTTPMetrics holds the metrics for HTTP requests.

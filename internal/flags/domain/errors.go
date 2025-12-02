@@ -1,6 +1,6 @@
 package domain
 
-import "github.com/0xsj/hexagonal-go/pkg/errors"
+import "github.com/0xsj/nexus-go/pkg/errors"
 
 // Domain-specific error codes for the Flag aggregate.
 // These codes are stable across versions and used by clients.

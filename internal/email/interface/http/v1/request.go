@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/0xsj/hexagonal-go/internal/email/application/dto"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/email/application/dto"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // ParseCreateTemplateRequest parses and validates a create template request.

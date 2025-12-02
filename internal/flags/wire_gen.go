@@ -7,15 +7,15 @@
 package flags
 
 import (
-	"github.com/0xsj/hexagonal-go/internal/flags/application/command"
-	"github.com/0xsj/hexagonal-go/internal/flags/application/query"
-	"github.com/0xsj/hexagonal-go/internal/flags/domain"
-	"github.com/0xsj/hexagonal-go/internal/flags/infrastructure/repository"
-	"github.com/0xsj/hexagonal-go/internal/flags/interface/http/admin"
-	v1 "github.com/0xsj/hexagonal-go/internal/flags/interface/http/v1"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/internal/flags/application/command"
+	"github.com/0xsj/nexus-go/internal/flags/application/query"
+	"github.com/0xsj/nexus-go/internal/flags/domain"
+	"github.com/0xsj/nexus-go/internal/flags/infrastructure/repository"
+	"github.com/0xsj/nexus-go/internal/flags/interface/http/admin"
+	"github.com/0xsj/nexus-go/internal/flags/interface/http/v1"
+	"github.com/0xsj/nexus-go/pkg/database"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 	"github.com/google/wire"
 )
 

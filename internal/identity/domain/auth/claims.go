@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"github.com/0xsj/hexagonal-go/pkg/security/jwt"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/security/jwt"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Claim keys for identity domain.

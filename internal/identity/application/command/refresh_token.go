@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/auth"
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/session"
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/user"
-	pkgerrors "github.com/0xsj/hexagonal-go/pkg/errors"
-	"github.com/0xsj/hexagonal-go/pkg/messaging"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/security/jwt"
+	"github.com/0xsj/nexus-go/internal/identity/domain/auth"
+	"github.com/0xsj/nexus-go/internal/identity/domain/session"
+	"github.com/0xsj/nexus-go/internal/identity/domain/user"
+	pkgerrors "github.com/0xsj/nexus-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/messaging"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/security/jwt"
 )
 
 // RefreshTokenCommand handles token refresh.

@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/0xsj/hexagonal-go/internal/flags/application/dto"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/flags/application/dto"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // ParseFlagID extracts and validates flag ID from URL path parameter.

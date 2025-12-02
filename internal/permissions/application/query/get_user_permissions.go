@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 
-	"github.com/0xsj/hexagonal-go/internal/permissions/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/permissions/domain"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/permissions/application/dto"
+	"github.com/0xsj/nexus-go/internal/permissions/domain"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // GetUserPermissionsRequest represents the input for getting user permissions.

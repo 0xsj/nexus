@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/email/domain"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	pkgerrors "github.com/0xsj/hexagonal-go/pkg/errors"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/email/domain"
+	"github.com/0xsj/nexus-go/pkg/database"
+	pkgerrors "github.com/0xsj/nexus-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // PostgresRepository is a PostgreSQL implementation of domain.Repository.

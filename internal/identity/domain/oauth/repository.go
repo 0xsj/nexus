@@ -3,7 +3,7 @@ package oauth
 import (
 	"context"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Repository defines the port for OAuth account persistence.

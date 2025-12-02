@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
-	"github.com/0xsj/hexagonal-go/pkg/security/jwt"
+	"github.com/0xsj/nexus-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/security/jwt"
 )
 
 // AuthContextKey is the context key for authentication claims.

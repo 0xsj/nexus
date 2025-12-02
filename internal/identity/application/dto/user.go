@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/user"
+	"github.com/0xsj/nexus-go/internal/identity/domain/user"
 )
 
 // UserDTO is the data transfer object for user responses.

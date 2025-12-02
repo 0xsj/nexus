@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/internal/email/application/dto"
-	"github.com/0xsj/hexagonal-go/internal/email/domain"
+	"github.com/0xsj/nexus-go/internal/email/application/dto"
+	"github.com/0xsj/nexus-go/internal/email/domain"
 )
 
 // ListTemplatesQuery handles listing templates with filters.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/pkg/http/response"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/http/response"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // PermissionChecker is an interface for checking permissions.

@@ -3,8 +3,8 @@ package provider
 import (
 	"context"
 
-	"github.com/0xsj/hexagonal-go/pkg/storage"
-	"github.com/0xsj/hexagonal-go/pkg/storage/s3"
+	"github.com/0xsj/nexus-go/pkg/storage"
+	"github.com/0xsj/nexus-go/pkg/storage/s3"
 )
 
 // NewStorage creates a new storage instance based on configuration

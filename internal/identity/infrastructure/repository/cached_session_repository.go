@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/session"
-	"github.com/0xsj/hexagonal-go/pkg/cache"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/identity/domain/session"
+	"github.com/0xsj/nexus-go/pkg/cache"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // CachedSessionRepository decorates a session repository with Redis caching.

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/internal/identity/domain/auth"
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	pkgerrors "github.com/0xsj/hexagonal-go/pkg/errors"
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/internal/identity/domain/auth"
+	"github.com/0xsj/nexus-go/pkg/database"
+	pkgerrors "github.com/0xsj/nexus-go/pkg/errors"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // PostgresTokenRepository is a PostgreSQL implementation for password reset tokens.

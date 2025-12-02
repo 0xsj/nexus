@@ -3,9 +3,9 @@ package provider
 import (
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/database"
-	"github.com/0xsj/hexagonal-go/pkg/flags"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/database"
+	"github.com/0xsj/nexus-go/pkg/flags"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // ProvideFlagsClient creates a new feature flags client.

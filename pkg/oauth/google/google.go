@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/oauth"
+	"github.com/0xsj/nexus-go/pkg/oauth"
 )
 
 const (

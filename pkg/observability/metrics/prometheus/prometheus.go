@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/observability/metrics"
+	"github.com/0xsj/nexus-go/pkg/observability/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

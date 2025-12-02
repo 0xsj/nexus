@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // Logger is a middleware that logs HTTP requests and responses.

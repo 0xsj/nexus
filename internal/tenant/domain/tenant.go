@@ -3,7 +3,7 @@ package tenant
 import (
 	"fmt"
 
-	"github.com/0xsj/hexagonal-go/pkg/types"
+	"github.com/0xsj/nexus-go/pkg/types"
 )
 
 // Tenant is the aggregate root for tenant management.

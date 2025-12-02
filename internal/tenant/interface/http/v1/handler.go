@@ -3,10 +3,10 @@ package v1
 import (
 	"net/http"
 
-	"github.com/0xsj/hexagonal-go/internal/tenant/application/command"
-	"github.com/0xsj/hexagonal-go/internal/tenant/application/query"
-	"github.com/0xsj/hexagonal-go/pkg/http/middleware"
-	"github.com/0xsj/hexagonal-go/pkg/observability/logger"
+	"github.com/0xsj/nexus-go/internal/tenant/application/command"
+	"github.com/0xsj/nexus-go/internal/tenant/application/query"
+	"github.com/0xsj/nexus-go/pkg/http/middleware"
+	"github.com/0xsj/nexus-go/pkg/observability/logger"
 )
 
 // Handler handles HTTP requests for the Tenant domain (v1 API).
