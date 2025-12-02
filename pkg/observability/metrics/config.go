@@ -34,7 +34,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Enabled:               true,
-		Port:                  9090,
+		Port:                  9094,
 		Path:                  "/metrics",
 		Namespace:             "hexagonal",
 		Subsystem:             "",

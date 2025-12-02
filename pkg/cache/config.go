@@ -27,7 +27,7 @@ func DefaultConfig() Config {
 	return Config{
 		Enabled:      true,
 		Host:         "localhost",
-		Port:         6379,
+		Port:         6384,
 		Password:     "",
 		DB:           0,
 		PoolSize:     10,
