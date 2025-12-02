@@ -20,11 +20,11 @@ import (
 
 // GRPCMetrics holds the metrics for gRPC requests.
 type GRPCMetrics struct {
-	requestsTotal      metrics.Counter
-	requestDuration    metrics.Histogram
-	requestsInFlight   metrics.Gauge
-	streamMsgSent      metrics.Counter
-	streamMsgReceived  metrics.Counter
+	requestsTotal     metrics.Counter
+	requestDuration   metrics.Histogram
+	requestsInFlight  metrics.Gauge
+	streamMsgSent     metrics.Counter
+	streamMsgReceived metrics.Counter
 }
 
 // NewGRPCMetrics creates gRPC metrics using the provided metrics provider.

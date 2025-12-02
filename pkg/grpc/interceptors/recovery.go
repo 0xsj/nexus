@@ -113,7 +113,7 @@ func (r *RecoveryInterceptor) handlePanic(ctx context.Context, method string, re
 type RecoveryOption func(*recoveryOptions)
 
 type recoveryOptions struct {
-	logger         logger.Logger
+	logger          logger.Logger
 	recoveryHandler RecoveryHandlerFunc
 }
 

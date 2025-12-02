@@ -90,9 +90,9 @@ func (t *TracingInterceptor) Unary() grpc.UnaryServerInterceptor {
 		ctx, span := t.tracer.Start(ctx, spanName,
 			tracing.WithSpanKind(tracing.SpanKindServer),
 			tracing.WithAttributes(map[string]any{
-				"rpc.system":         "grpc",
-				"rpc.service":        service,
-				"rpc.method":         method,
+				"rpc.system":           "grpc",
+				"rpc.service":          service,
+				"rpc.method":           method,
 				"rpc.grpc.full_method": info.FullMethod,
 			}),
 		)
@@ -143,10 +143,10 @@ func (t *TracingInterceptor) Stream() grpc.StreamServerInterceptor {
 		ctx, span := t.tracer.Start(ss.Context(), spanName,
 			tracing.WithSpanKind(tracing.SpanKindServer),
 			tracing.WithAttributes(map[string]any{
-				"rpc.system":           "grpc",
-				"rpc.service":          service,
-				"rpc.method":           method,
-				"rpc.grpc.full_method": info.FullMethod,
+				"rpc.system":             "grpc",
+				"rpc.service":            service,
+				"rpc.method":             method,
+				"rpc.grpc.full_method":   info.FullMethod,
 				"rpc.grpc.client_stream": info.IsClientStream,
 				"rpc.grpc.server_stream": info.IsServerStream,
 			}),
