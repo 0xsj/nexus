@@ -1,0 +1,354 @@
+syntax = "proto3";
+
+package nexus.identity.v1;
+
+option go_package = "github.com/0xsj/nexus-go/gen/proto/v1/identity;identitypb";
+
+import "google/protobuf/timestamp.proto";
+import "common/common.proto";
+
+// ============================================================================
+// User Status
+// ============================================================================
+
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_PENDING = 1;
+  USER_STATUS_ACTIVE = 2;
+  USER_STATUS_SUSPENDED = 3;
+  USER_STATUS_LOCKED = 4;
+  USER_STATUS_DELETED = 5;
+}
+
+// ============================================================================
+// User Role
+// ============================================================================
+
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_GUEST = 1;
+  USER_ROLE_USER = 2;
+  USER_ROLE_MODERATOR = 3;
+  USER_ROLE_ADMIN = 4;
+  USER_ROLE_SUPER_ADMIN = 5;
+}
+
+// ============================================================================
+// Auth Provider
+// ============================================================================
+
+enum AuthProvider {
+  AUTH_PROVIDER_UNSPECIFIED = 0;
+  AUTH_PROVIDER_PASSWORD = 1;
+  AUTH_PROVIDER_GOOGLE = 2;
+  AUTH_PROVIDER_GITHUB = 3;
+  AUTH_PROVIDER_MICROSOFT = 4;
+  AUTH_PROVIDER_APPLE = 5;
+  AUTH_PROVIDER_MAGIC_LINK = 6;
+}
+
+// ============================================================================
+// Session Status
+// ============================================================================
+
+enum SessionStatus {
+  SESSION_STATUS_UNSPECIFIED = 0;
+  SESSION_STATUS_ACTIVE = 1;
+  SESSION_STATUS_EXPIRED = 2;
+  SESSION_STATUS_REVOKED = 3;
+  SESSION_STATUS_LOGGED_OUT = 4;
+}
+
+// ============================================================================
+// User Messages
+// ============================================================================
+
+message User {
+  string id = 1;
+  string tenant_id = 2;
+  string email = 3;
+  UserStatus status = 4;
+  UserRole role = 5;
+  bool email_verified = 6;
+  google.protobuf.Timestamp email_verified_at = 7;
+  int32 failed_login_attempts = 8;
+  google.protobuf.Timestamp locked_until = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  google.protobuf.Timestamp last_login_at = 12;
+  string last_login_ip = 13;
+  string last_login_user_agent = 14;
+  int32 version = 15;
+}
+
+message UserSummary {
+  string id = 1;
+  string tenant_id = 2;
+  string email = 3;
+  UserStatus status = 4;
+  UserRole role = 5;
+  bool email_verified = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message UserFilter {
+  repeated UserStatus statuses = 1;
+  repeated UserRole roles = 2;
+  optional bool email_verified = 3;
+  string email_contains = 4;
+  string tenant_id = 5;
+  google.protobuf.Timestamp created_after = 6;
+  google.protobuf.Timestamp created_before = 7;
+}
+
+// ============================================================================
+// Session Messages
+// ============================================================================
+
+message Session {
+  string id = 1;
+  string user_id = 2;
+  string tenant_id = 3;
+  AuthProvider provider = 4;
+  SessionStatus status = 5;
+  string ip_address = 6;
+  string user_agent = 7;
+  string device_id = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp last_active_at = 11;
+  google.protobuf.Timestamp revoked_at = 12;
+}
+
+message SessionSummary {
+  string id = 1;
+  AuthProvider provider = 2;
+  SessionStatus status = 3;
+  string ip_address = 4;
+  string user_agent = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp last_active_at = 7;
+  bool is_current = 8;
+}
+
+// ============================================================================
+// Token Messages
+// ============================================================================
+
+message TokenPair {
+  string access_token = 1;
+  string refresh_token = 2;
+  int32 expires_in = 3;
+  string token_type = 4;
+}
+
+// ============================================================================
+// Auth Requests/Responses
+// ============================================================================
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  string ip_address = 3;
+  string user_agent = 4;
+}
+
+message LoginResponse {
+  User user = 1;
+  TokenPair tokens = 2;
+  string session_id = 3;
+}
+
+message RegisterRequest {
+  string tenant_id = 1;
+  string email = 2;
+  string password = 3;
+  string ip_address = 4;
+  string user_agent = 5;
+}
+
+message RegisterResponse {
+  User user = 1;
+  TokenPair tokens = 2;
+  string session_id = 3;
+  bool verification_required = 4;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  TokenPair tokens = 1;
+}
+
+message LogoutRequest {
+  string session_id = 1;
+  bool all_sessions = 2;
+}
+
+message LogoutResponse {
+  int32 sessions_revoked = 1;
+}
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message VerifyEmailResponse {
+  bool verified = 1;
+  User user = 2;
+}
+
+message ResendVerificationRequest {
+  string email = 1;
+}
+
+message ResendVerificationResponse {
+  bool sent = 1;
+}
+
+message RequestPasswordResetRequest {
+  string email = 1;
+}
+
+message RequestPasswordResetResponse {
+  bool sent = 1;
+}
+
+message ResetPasswordRequest {
+  string token = 1;
+  string new_password = 2;
+}
+
+message ResetPasswordResponse {
+  bool success = 1;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message ChangePasswordResponse {
+  bool success = 1;
+}
+
+// ============================================================================
+// User CRUD Requests/Responses
+// ============================================================================
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message GetCurrentUserRequest {}
+
+message GetCurrentUserResponse {
+  User user = 1;
+}
+
+message ListUsersRequest {
+  UserFilter filter = 1;
+  nexus.common.v1.PageRequest pagination = 2;
+}
+
+message ListUsersResponse {
+  repeated UserSummary users = 1;
+  nexus.common.v1.PageResponse pagination = 2;
+}
+
+message SuspendUserRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message SuspendUserResponse {
+  bool success = 1;
+}
+
+message ReactivateUserRequest {
+  string id = 1;
+}
+
+message ReactivateUserResponse {
+  bool success = 1;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message DeleteUserResponse {
+  bool success = 1;
+}
+
+message ChangeUserRoleRequest {
+  string id = 1;
+  UserRole role = 2;
+  string reason = 3;
+}
+
+message ChangeUserRoleResponse {
+  bool success = 1;
+}
+
+// ============================================================================
+// Session Requests/Responses
+// ============================================================================
+
+message ListSessionsRequest {
+  string user_id = 1;
+}
+
+message ListSessionsResponse {
+  repeated SessionSummary sessions = 1;
+}
+
+message RevokeSessionRequest {
+  string session_id = 1;
+}
+
+message RevokeSessionResponse {
+  bool success = 1;
+}
+
+// ============================================================================
+// Identity Service
+// ============================================================================
+
+service IdentityService {
+  // Authentication
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  // Email verification
+  rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse);
+  rpc ResendVerification(ResendVerificationRequest) returns (ResendVerificationResponse);
+
+  // Password management
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse);
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+
+  // User queries
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+
+  // User management (admin)
+  rpc SuspendUser(SuspendUserRequest) returns (SuspendUserResponse);
+  rpc ReactivateUser(ReactivateUserRequest) returns (ReactivateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc ChangeUserRole(ChangeUserRoleRequest) returns (ChangeUserRoleResponse);
+
+  // Session management
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+}
