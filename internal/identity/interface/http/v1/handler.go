@@ -5,6 +5,7 @@ import (
 
 	"github.com/0xsj/nexus-go/internal/identity/application/command"
 	"github.com/0xsj/nexus-go/internal/identity/application/dto"
+	_ "github.com/0xsj/nexus-go/internal/identity/application/dto"
 	"github.com/0xsj/nexus-go/internal/identity/application/query"
 	"github.com/0xsj/nexus-go/internal/identity/domain/user"
 	"github.com/0xsj/nexus-go/pkg/http/middleware"
