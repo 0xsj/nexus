@@ -1,80 +1,196 @@
-name: nexus
+name: nexus-go
 
 services:
+  # ============================================================================
+  # Core Infrastructure
+  # ============================================================================
+
+  # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: nexus-postgres
+    container_name: nexus-go-postgres
     restart: unless-stopped
-    ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+    platform: linux/arm64
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nexus_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_pass}
-      POSTGRES_DB: ${POSTGRES_DB:-nexus}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: nexus_dev_pass
+      POSTGRES_DB: nexus_go
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5437:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - nexus_postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - nexus-network
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-nexus_user} -d ${POSTGRES_DB:-nexus}",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U nexus"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - nexus
 
+  # Redis Cache
   redis:
     image: redis:7-alpine
-    container_name: nexus-redis
+    container_name: nexus-go-redis
     restart: unless-stopped
+    platform: linux/arm64
     ports:
-      - "${REDIS_PORT:-6380}:6379"
-    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
+      - "6384:6379"
     volumes:
-      - redis_data:/data
+      - nexus_redis_data:/data
+    networks:
+      - nexus-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - nexus
+    command: redis-server --appendonly yes
 
-  nats:
-    image: nats:2.10-alpine
-    container_name: nexus-nats
+  # ============================================================================
+  # Observability Stack
+  # ============================================================================
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: nexus-go-otel-collector
     restart: unless-stopped
-    ports:
-      - "${NATS_CLIENT_PORT:-4223}:4222"
-      - "${NATS_HTTP_PORT:-8223}:8222"
-      - "${NATS_CLUSTER_PORT:-6223}:6222"
-    command:
-      - "-js"
-      - "-sd"
-      - "/data"
-      - "-m"
-      - "8222"
+    platform: linux/arm64
+    command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
-      - nats_data:/data
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4319:4317" # OTLP gRPC receiver
+      - "4320:4318" # OTLP HTTP receiver
+      - "8890:8888" # Prometheus metrics exposed by the collector
+      - "8891:8889" # Prometheus exporter metrics
+    networks:
+      - nexus-network
+    depends_on:
+      - jaeger
+      - prometheus
+
+  # Jaeger - Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.53
+    container_name: nexus-go-jaeger
+    restart: unless-stopped
+    platform: linux/arm64
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16687:16686" # Jaeger UI
+      - "14269:14268" # Jaeger collector HTTP
+      - "14251:14250" # Jaeger collector gRPC
+    networks:
+      - nexus-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: nexus-go-prometheus
+    restart: unless-stopped
+    platform: linux/arm64
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - nexus_prometheus_data:/prometheus
+    ports:
+      - "9093:9090"
     networks:
-      - nexus
+      - nexus-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Grafana - Metrics Visualization
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: nexus-go-grafana
+    restart: unless-stopped
+    platform: linux/arm64
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3003
+    volumes:
+      - nexus_grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3003:3000"
+    networks:
+      - nexus-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Mailpit - Email Testing
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: nexus-go-mailpit
+    restart: unless-stopped
+    platform: linux/arm64
+    ports:
+      - "1028:1025" # SMTP server
+      - "8028:8025" # Web UI
+    networks:
+      - nexus-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO - Object Storage
+  minio:
+    image: minio/minio
+    container_name: nexus-go-minio
+    restart: unless-stopped
+    platform: linux/arm64
+    ports:
+      - "9002:9000" # API
+      - "9003:9001" # Console UI
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - nexus_minio_data:/data
+    networks:
+      - nexus-network
 
 volumes:
-  postgres_data:
+  nexus_postgres_data:
     driver: local
-  redis_data:
+  nexus_redis_data:
     driver: local
-  nats_data:
+  nexus_prometheus_data:
+    driver: local
+  nexus_grafana_data:
+    driver: local
+  nexus_minio_data:
     driver: local
 
 networks:
-  nexus:
+  nexus-network:
     driver: bridge

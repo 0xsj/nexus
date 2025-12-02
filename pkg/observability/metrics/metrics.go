@@ -1,65 +1,120 @@
-// Package metrics provides an abstraction over metrics collection systems.
 package metrics
 
-import "context"
+import (
+	"context"
+	"net/http"
+)
 
-// Labels represents metric labels as key-value pairs.
-// Labels should be low-cardinality (limited distinct values).
-type Labels map[string]string
-
-// Counter represents a monotonically increasing counter metric.
-// Counters can only increase (e.g., total requests, total errors).
-type Counter interface {
-	// Inc increments the counter by 1.
-	Inc()
-
-	// Add increments the counter by the given value.
-	// The value must be non-negative.
-	Add(value float64)
-}
-
-// Gauge represents a metric that can go up and down.
-// Gauges are used for values that can increase or decrease (e.g., active connections, queue size).
-type Gauge interface {
-	// Set sets the gauge to the given value.
-	Set(value float64)
-
-	// Inc increments the gauge by 1.
-	Inc()
-
-	// Dec decrements the gauge by 1.
-	Dec()
-
-	// Add adds the given value to the gauge (can be negative).
-	Add(value float64)
-}
-
-// Histogram represents a metric that samples observations and counts them in configurable buckets.
-// Histograms are used for measuring distributions (e.g., request duration, response size).
-type Histogram interface {
-	// Observe records an observation (e.g., request duration in seconds).
-	Observe(value float64)
-
-	// ObserveWithContext records an observation with context for trace correlation.
-	ObserveWithContext(ctx context.Context, value float64)
-}
-
-// Provider is a factory for creating metrics.
-// Each implementation (Prometheus, Noop, etc.) provides its own Provider.
+// Provider is the port for metrics collection.
+// Implementations include Prometheus, DataDog, CloudWatch, etc.
 type Provider interface {
 	// Counter creates or retrieves a counter metric.
-	// Name should follow the convention: spotlight_<subsystem>_<metric>_total
-	// Example: spotlight_http_requests_total
-	Counter(name, help string, labels Labels) Counter
+	Counter(name, help string, labels ...string) Counter
 
 	// Gauge creates or retrieves a gauge metric.
-	// Name should follow the convention: spotlight_<subsystem>_<metric>
-	// Example: spotlight_active_connections
-	Gauge(name, help string, labels Labels) Gauge
+	Gauge(name, help string, labels ...string) Gauge
 
 	// Histogram creates or retrieves a histogram metric.
-	// Name should follow the convention: spotlight_<subsystem>_<metric>_<unit>
-	// Example: spotlight_http_request_duration_seconds
-	// Buckets define the histogram buckets. If nil, default buckets are used.
-	Histogram(name, help string, labels Labels, buckets []float64) Histogram
+	Histogram(name, help string, buckets []float64, labels ...string) Histogram
+
+	// Handler returns an HTTP handler for exposing metrics.
+	Handler() http.Handler
+
+	// Start starts a metrics server on the configured port.
+	Start(ctx context.Context) error
+
+	// Close gracefully shuts down the metrics provider.
+	Close() error
 }
+
+// Counter is a monotonically increasing metric.
+// Use for: request counts, errors, completed tasks.
+type Counter interface {
+	// Inc increments the counter by 1.
+	Inc(labels ...string)
+
+	// Add adds the given value to the counter.
+	Add(value float64, labels ...string)
+}
+
+// Gauge is a metric that can go up and down.
+// Use for: current connections, queue size, temperature.
+type Gauge interface {
+	// Set sets the gauge to the given value.
+	Set(value float64, labels ...string)
+
+	// Inc increments the gauge by 1.
+	Inc(labels ...string)
+
+	// Dec decrements the gauge by 1.
+	Dec(labels ...string)
+
+	// Add adds the given value to the gauge.
+	Add(value float64, labels ...string)
+
+	// Sub subtracts the given value from the gauge.
+	Sub(value float64, labels ...string)
+}
+
+// Histogram measures the distribution of values.
+// Use for: request latency, response size.
+type Histogram interface {
+	// Observe records a value in the histogram.
+	Observe(value float64, labels ...string)
+}
+
+// Timer is a helper for measuring duration.
+type Timer struct {
+	histogram Histogram
+	labels    []string
+	startTime int64
+}
+
+// NoopProvider is a no-op implementation of Provider.
+// Useful for testing or when metrics are disabled.
+type NoopProvider struct{}
+
+func (n *NoopProvider) Counter(name, help string, labels ...string) Counter {
+	return &noopCounter{}
+}
+
+func (n *NoopProvider) Gauge(name, help string, labels ...string) Gauge {
+	return &noopGauge{}
+}
+
+func (n *NoopProvider) Histogram(name, help string, buckets []float64, labels ...string) Histogram {
+	return &noopHistogram{}
+}
+
+func (n *NoopProvider) Handler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+func (n *NoopProvider) Start(ctx context.Context) error {
+	return nil
+}
+
+func (n *NoopProvider) Close() error {
+	return nil
+}
+
+// Noop implementations
+
+type noopCounter struct{}
+
+func (n *noopCounter) Inc(labels ...string)                {}
+func (n *noopCounter) Add(value float64, labels ...string) {}
+
+type noopGauge struct{}
+
+func (n *noopGauge) Set(value float64, labels ...string) {}
+func (n *noopGauge) Inc(labels ...string)                {}
+func (n *noopGauge) Dec(labels ...string)                {}
+func (n *noopGauge) Add(value float64, labels ...string) {}
+func (n *noopGauge) Sub(value float64, labels ...string) {}
+
+type noopHistogram struct{}
+
+func (n *noopHistogram) Observe(value float64, labels ...string) {}

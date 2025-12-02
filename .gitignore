@@ -1,24 +1,39 @@
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Keep example
-!.env.example
-!deployments/docker/.env.docker.example
-
 # Binaries
 bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 
-# Coverage
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
 coverage.out
-coverage.html
 
-# Air tmp
-tmp/
+# Go workspace file
+go.work
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Air hot reload
+tmp/
+
+# Wire generated (optional - some prefer to commit these)
+# *_gen.go
