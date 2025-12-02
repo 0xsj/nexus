@@ -1,25 +1,46 @@
 # ============================================================================
-# Configuration
+# Nexus Go - Makefile
+# ============================================================================
+#
+# Usage:
+#   make run                    # Loads .env, runs API
+#   make run ENV=api2           # Loads .env.api2, runs API
+#   SERVER_PORT=8082 make run   # Override single var
+#
 # ============================================================================
 
-DB_USER ?= nexus_user
-DB_PASS ?= nexus_pass
-DB_HOST ?= localhost
-DB_PORT ?= 5433
-DB_NAME ?= nexus
-DB_SSLMODE ?= disable
+# ============================================================================
+# Environment Configuration
+# ============================================================================
 
-# Construct DATABASE_URL
-DATABASE_URL = postgres://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+ENV_FILE := $(if $(ENV),.env.$(ENV),.env)
 
-# gRPC Server
-GRPC_PORT ?= 9090
+ifneq (,$(wildcard $(ENV_FILE)))
+  include $(ENV_FILE)
+  export $(shell sed 's/=.*//' $(ENV_FILE) | grep -v '^\#')
+else
+  $(warning Warning: $(ENV_FILE) not found, using defaults)
+endif
 
-# HTTP Gateway
-HTTP_PORT ?= 8080
+# ============================================================================
+# Defaults (used if not in .env)
+# ============================================================================
 
-# Project
-PROJECT_NAME = nexus
+DB_HOST     ?= localhost
+DB_PORT     ?= 5437
+DB_USER     ?= nexus
+DB_PASSWORD ?= nexus_dev_pass
+DB_DATABASE ?= nexus_go
+DB_SSL_MODE ?= disable
+
+SERVER_PORT  ?= 8081
+METRICS_PORT ?= 9091
+
+# Derived
+DATABASE_URL := postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_DATABASE)?sslmode=$(DB_SSL_MODE)
+
+# Docker
+DOCKER_COMPOSE_FILE ?= deployments/docker/docker-compose.yml
 
 # ============================================================================
 # Help
@@ -27,478 +48,277 @@ PROJECT_NAME = nexus
 
 .PHONY: help
 help: ## Show this help message
-	@echo 'Usage: make [target]'
 	@echo ''
-	@echo 'Available targets:'
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo '\033[1mNexus Go\033[0m'
+	@echo ''
+	@echo '\033[36mUsage:\033[0m'
+	@echo '  make \033[33m<target>\033[0m [ENV=name] [VAR=value]'
+	@echo ''
+	@echo '\033[36mExamples:\033[0m'
+	@echo '  make run                     # Load .env, run API'
+	@echo '  make run ENV=api2            # Load .env.api2, run API'
+	@echo '  make dev SERVER_PORT=8082    # Override port'
+	@echo ''
+	@echo '\033[36mTargets:\033[0m'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[33m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ''
+	@echo '\033[36mCurrent Configuration:\033[0m'
+	@echo '  ENV_FILE:      $(ENV_FILE)'
+	@echo '  SERVER_PORT:   $(SERVER_PORT)'
+	@echo '  METRICS_PORT:  $(METRICS_PORT)'
+	@echo '  DB_HOST:       $(DB_HOST):$(DB_PORT)'
+	@echo '  DB_DATABASE:   $(DB_DATABASE)'
+	@echo ''
 
 # ============================================================================
-# Docker Commands
+# Development
+# ============================================================================
+
+.PHONY: install-tools
+install-tools: ## Install development tools (air, wire, migrate, swag)
+	@echo "Installing development tools..."
+	@go install github.com/air-verse/air@latest
+	@go install github.com/google/wire/cmd/wire@latest
+	@go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	@go install github.com/swaggo/swag/cmd/swag@latest
+	@echo "✓ Tools installed"
+
+.PHONY: dev
+dev: ## Run with hot reload (requires air)
+	@echo "Starting dev server ($(ENV_FILE))..."
+	@sed -i '' 's/dotenv = .*/dotenv = "$(ENV_FILE)"/' .air.toml 2>/dev/null || true
+	@air
+
+.PHONY: run
+run: wire ## Run the API server
+	@echo "Starting API server ($(ENV_FILE))..."
+	@go run ./cmd/api
+
+.PHONY: worker
+worker: ## Run the background worker
+	@echo "Starting worker ($(ENV_FILE))..."
+	@go run ./cmd/worker
+
+# ============================================================================
+# Build
+# ============================================================================
+
+.PHONY: build
+build: wire ## Build the API binary
+	@echo "Building..."
+	@go build -o bin/api ./cmd/api
+	@echo "✓ Built to bin/api"
+
+.PHONY: build-worker
+build-worker: ## Build the worker binary
+	@echo "Building worker..."
+	@go build -o bin/worker ./cmd/worker
+	@echo "✓ Built to bin/worker"
+
+.PHONY: clean
+clean: ## Clean build artifacts
+	@echo "Cleaning..."
+	@rm -rf bin/ tmp/ coverage.out
+	@echo "✓ Clean complete"
+
+# ============================================================================
+# Docker
 # ============================================================================
 
 .PHONY: docker-up
-docker-up: ## Start core infrastructure (postgres, redis, nats)
-	docker-compose -f deployments/docker/docker-compose.yml --env-file deployments/docker/.env.docker up -d
-	@echo "✅ Core infrastructure started"
-	@echo "PostgreSQL: localhost:5433"
-	@echo "Redis: localhost:6380"
-	@echo "NATS: localhost:4223 (HTTP: localhost:8223)"
-
-.PHONY: docker-up-full
-docker-up-full: docker-up ## Start core + observability stack
-	docker-compose -f deployments/docker/docker-compose.observability.yml --env-file deployments/docker/.env.docker up -d
-	@echo "✅ Full stack started (core + observability)"
-	@echo "Prometheus: http://localhost:9091"
-	@echo "Grafana: http://localhost:3001 (admin/admin)"
-	@echo "Jaeger UI: http://localhost:16687"
+docker-up: ## Start all Docker services
+	@echo "Starting Docker services..."
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d
+	@echo "✓ Docker services started"
+	@echo ""
+	@echo "\033[36mServices:\033[0m"
+	@echo "  PostgreSQL:      localhost:5437"
+	@echo "  Redis:           localhost:6384"
+	@echo "  Mailpit SMTP:    localhost:1028"
+	@echo "  Mailpit UI:      http://localhost:8028"
+	@echo "  Jaeger UI:       http://localhost:16687"
+	@echo "  Prometheus:      http://localhost:9093"
+	@echo "  Grafana:         http://localhost:3003 (admin/admin)"
+	@echo "  MinIO Console:   http://localhost:9003"
+	@echo "  OTEL Collector:  localhost:4319 (gRPC), localhost:4320 (HTTP)"
 
 .PHONY: docker-down
-docker-down: ## Stop all services
-	docker-compose -f deployments/docker/docker-compose.yml down
-	docker-compose -f deployments/docker/docker-compose.observability.yml down 2>/dev/null || true
-
-.PHONY: docker-down-volumes
-docker-down-volumes: ## Stop all services and remove volumes (⚠️  DELETES DATA)
-	docker-compose -f deployments/docker/docker-compose.yml down -v
-	docker-compose -f deployments/docker/docker-compose.observability.yml down -v 2>/dev/null || true
-	@echo "⚠️  All data volumes removed"
+docker-down: ## Stop all Docker services
+	@echo "Stopping Docker services..."
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) down
+	@echo "✓ Docker services stopped"
 
 .PHONY: docker-logs
-docker-logs: ## Show logs for core services
-	docker-compose -f deployments/docker/docker-compose.yml logs -f
+docker-logs: ## Show Docker logs (follow)
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) logs -f
 
-.PHONY: docker-logs-obs
-docker-logs-obs: ## Show logs for observability services
-	docker-compose -f deployments/docker/docker-compose.observability.yml logs -f
-
-.PHONY: docker-ps
-docker-ps: ## Show running services
-	@docker-compose -f deployments/docker/docker-compose.yml ps
-	@echo ""
-	@docker-compose -f deployments/docker/docker-compose.observability.yml ps 2>/dev/null || true
+.PHONY: docker-clean
+docker-clean: ## Remove all Docker volumes (WARNING: deletes data)
+	@echo "⚠️  This will delete all data. Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) down -v
+	@echo "✓ Docker volumes removed"
 
 .PHONY: docker-restart
-docker-restart: docker-down docker-up ## Restart core services
+docker-restart: docker-down docker-up ## Restart Docker services
 
 # ============================================================================
-# Database Commands
+# Database
 # ============================================================================
 
-.PHONY: db-shell
-db-shell: ## Connect to PostgreSQL shell
-	docker-compose -f deployments/docker/docker-compose.yml exec postgres psql -U nexus_user -d nexus
+.PHONY: db-connect
+db-connect: ## Connect to PostgreSQL database
+	@docker exec -it nexus-go-postgres psql -U $(DB_USER) -d $(DB_DATABASE)
 
-# ============================================================================
-# Migration Commands
-# ============================================================================
-
-.PHONY: migrate-install
-migrate-install: ## Install golang-migrate tool
-	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-	@echo "✅ golang-migrate installed"
-
-.PHONY: migrate-create
-migrate-create: ## Create a new migration (usage: make migrate-create name=create_users_table)
-	@if [ -z "$(name)" ]; then \
-		echo "Error: name is required. Usage: make migrate-create name=create_users_table"; \
-		exit 1; \
-	fi
-	migrate create -ext sql -dir migrations -seq $(name)
-	@echo "✅ Migration files created in migrations/"
-
-.PHONY: migrate-up
-migrate-up: ## Apply all pending migrations
-	@echo "Applying migrations to: $(DB_HOST):$(DB_PORT)/$(DB_NAME)"
-	migrate -path migrations -database "$(DATABASE_URL)" up
-	@echo "✅ Migrations applied"
-
-.PHONY: migrate-up-one
-migrate-up-one: ## Apply next pending migration
-	migrate -path migrations -database "$(DATABASE_URL)" up 1
-	@echo "✅ One migration applied"
-
-.PHONY: migrate-down
-migrate-down: ## Rollback last migration
-	@echo "⚠️  Rolling back last migration from: $(DB_HOST):$(DB_PORT)/$(DB_NAME)"
-	migrate -path migrations -database "$(DATABASE_URL)" down 1
-	@echo "⚠️  Last migration rolled back"
-
-.PHONY: migrate-down-all
-migrate-down-all: ## Rollback all migrations (⚠️  DANGEROUS)
-	@echo "⚠️  WARNING: This will rollback ALL migrations from $(DB_HOST):$(DB_PORT)/$(DB_NAME)"
-	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ]
-	migrate -path migrations -database "$(DATABASE_URL)" down -all
-	@echo "⚠️  All migrations rolled back"
-
-.PHONY: migrate-version
-migrate-version: ## Show current migration version
-	@migrate -path migrations -database "$(DATABASE_URL)" version
-
-.PHONY: migrate-force
-migrate-force: ## Force migration version (usage: make migrate-force version=1)
-	@if [ -z "$(version)" ]; then \
-		echo "Error: version is required. Usage: make migrate-force version=1"; \
-		exit 1; \
-	fi
-	@echo "⚠️  WARNING: Forcing migration version to $(version)"
-	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ]
-	migrate -path migrations -database "$(DATABASE_URL)" force $(version)
-	@echo "⚠️  Migration version forced to $(version)"
-
-.PHONY: migrate-sync
-migrate-sync: ## Copy migrations from root to embedded directory
-	@echo "Syncing migrations to embedded directory..."
-	@mkdir -p pkg/database/postgres/migrations
-	@rm -f pkg/database/postgres/migrations/*.sql
-	@cp migrations/*.sql pkg/database/postgres/migrations/ 2>/dev/null || echo "No migrations to sync yet"
-	@echo "✅ Migrations synced"
-
-# ============================================================================
-# Redis Commands
-# ============================================================================
+.PHONY: db-logs
+db-logs: ## Show PostgreSQL logs
+	@docker logs -f nexus-go-postgres
 
 .PHONY: redis-cli
 redis-cli: ## Connect to Redis CLI
-	docker-compose -f deployments/docker/docker-compose.yml exec redis redis-cli
-
-.PHONY: redis-flush
-redis-flush: ## Flush all Redis data (⚠️  DELETES DATA)
-	docker-compose -f deployments/docker/docker-compose.yml exec redis redis-cli FLUSHALL
-	@echo "⚠️  Redis data flushed"
+	@docker exec -it nexus-go-redis redis-cli
 
 # ============================================================================
-# NATS Commands
+# Migrations
 # ============================================================================
 
-.PHONY: nats-stream-info
-nats-stream-info: ## Show NATS JetStream stream info
-	@echo "NATS Stream Information:"
-	@docker exec nexus-nats nats stream info events 2>/dev/null || \
-		echo "⚠️  Stream 'events' not found or NATS CLI not available in container"
+.PHONY: migrate-up
+migrate-up: ## Run all pending migrations
+	@echo "Running migrations..."
+	@migrate -path migrations -database "$(DATABASE_URL)" up
+	@echo "✓ Migrations complete"
 
-.PHONY: nats-stream-list
-nats-stream-list: ## List all NATS streams
-	@docker exec nexus-nats nats stream list 2>/dev/null || \
-		echo "⚠️  NATS CLI not available in container"
+.PHONY: migrate-down
+migrate-down: ## Rollback last migration
+	@echo "Rolling back migration..."
+	@migrate -path migrations -database "$(DATABASE_URL)" down 1
+	@echo "✓ Rollback complete"
 
-.PHONY: nats-purge-stream
-nats-purge-stream: ## Purge all messages from events stream (⚠️ DELETES EVENTS)
-	@echo "⚠️  WARNING: This will purge ALL events from the stream"
-	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ]
-	@docker exec nexus-nats nats stream purge events --force 2>/dev/null || \
-		echo "⚠️  Failed to purge stream"
-	@echo "⚠️  Stream purged"
+.PHONY: migrate-reset
+migrate-reset: ## Reset all migrations (WARNING: deletes all data)
+	@echo "⚠️  This will delete all data. Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
+	@migrate -path migrations -database "$(DATABASE_URL)" down -all
+	@migrate -path migrations -database "$(DATABASE_URL)" up
+	@echo "✓ Database reset complete"
 
-.PHONY: nats-consumers
-nats-consumers: ## Show NATS consumers for events stream
-	@docker exec nexus-nats nats consumer list events 2>/dev/null || \
-		echo "⚠️  NATS CLI not available in container"
+.PHONY: migrate-status
+migrate-status: ## Show current migration version
+	@migrate -path migrations -database "$(DATABASE_URL)" version
 
-# ============================================================================
-# Proto & Code Generation
-# ============================================================================
-
-.PHONY: proto-install
-proto-install: ## Install buf CLI
-	@echo "Installing buf..."
-	@go install github.com/bufbuild/buf/cmd/buf@latest
-	@echo "✅ buf installed"
-
-.PHONY: proto-lint
-proto-lint: ## Lint proto files
-	@echo "Linting proto files..."
-	cd proto && buf lint
-	@echo "✅ Proto files linted"
-
-.PHONY: proto-breaking
-proto-breaking: ## Check for breaking changes in proto files
-	@echo "Checking for breaking changes..."
-	cd proto && buf breaking --against '.git#branch=main'
-	@echo "✅ No breaking changes detected"
-
-.PHONY: proto-generate
-proto-generate: ## Generate code from proto files
-	@echo "Generating code from proto files..."
-	cd proto && buf generate
-	@echo "✅ Proto code generated"
-
-.PHONY: proto-clean
-proto-clean: ## Clean generated proto code
-	@echo "Cleaning generated proto code..."
-	rm -rf api/
-	@echo "✅ Proto code cleaned"
-
-.PHONY: swagger
-swagger: ## Start Swagger UI server
-	@echo "Starting Swagger UI at http://localhost:8081"
-	@docker run -p 8081:8080 --rm \
-		-e SWAGGER_JSON=/openapi/openapi.swagger.json \
-		-v $(PWD)/openapi:/openapi \
-		swaggerapi/swagger-ui
+.PHONY: migrate-create
+migrate-create: ## Create new migration (NAME=create_foo_table)
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME is required"; \
+		echo "Usage: make migrate-create NAME=create_foo_table"; \
+		exit 1; \
+	fi
+	@migrate create -ext sql -dir migrations -seq $(NAME)
+	@echo "✓ Created migration: $(NAME)"
 
 # ============================================================================
-# Wire Dependency Injection
+# Code Generation
 # ============================================================================
 
 .PHONY: wire
 wire: ## Generate Wire dependency injection code
-	@echo "Generating Wire dependencies..."
-	@if [ -d "pkg/di" ]; then cd pkg/di && go run github.com/google/wire/cmd/wire@latest; fi
-	@if [ -d "cmd/server" ]; then cd cmd/server && go run github.com/google/wire/cmd/wire@latest; fi
-	@echo "✅ Wire dependencies generated"
+	@echo "Generating wire code..."
+	@find . \( -name "wire.go" -o -name "provider.go" \) -not -path "./vendor/*" -not -path "./tmp/*" | while read -r file; do \
+		if grep -q "wireinject" "$$file" 2>/dev/null; then \
+			dir=$$(dirname "$$file"); \
+			echo "  → $$dir"; \
+			(cd "$$dir" && wire) || exit 1; \
+		fi \
+	done
+	@echo "✓ Wire generation complete!"
 
-# ============================================================================
-# SQLC Code Generation
-# ============================================================================
+.PHONY: wire-check
+wire-check: ## Verify Wire configuration
+	@echo "Checking wire configuration..."
+	@find . \( -name "wire.go" -o -name "provider.go" \) -not -path "./vendor/*" -not -path "./tmp/*" | while read -r file; do \
+		if grep -q "wireinject" "$$file" 2>/dev/null; then \
+			dir=$$(dirname "$$file"); \
+			echo "  → $$dir"; \
+			(cd "$$dir" && wire check) || exit 1; \
+		fi \
+	done
+	@echo "✓ Wire check complete!"
 
-.PHONY: sqlc
-sqlc: ## Generate sqlc code
-	@echo "Generating sqlc code..."
-	@if [ -d "internal/users/infrastructure/postgres" ]; then \
-		cd internal/users/infrastructure/postgres && sqlc generate; \
-	fi
-	@echo "✅ sqlc code generated"
+.PHONY: swagger
+swagger: ## Generate Swagger documentation
+	@echo "Generating Swagger documentation..."
+	@swag init \
+		--generalInfo cmd/api/main.go \
+		--output docs/swagger \
+		--parseDependency \
+		--parseInternal \
+		--parseDepth 1
+	@echo "✓ Swagger docs generated at docs/swagger/"
 
-# ============================================================================
-# Generate All Code
-# ============================================================================
+.PHONY: swagger-fmt
+swagger-fmt: ## Format Swagger comments
+	@echo "Formatting Swagger comments..."
+	@swag fmt
 
 .PHONY: generate
-generate: proto-generate wire sqlc ## Generate all code (proto + wire + sqlc)
-	@echo "✅ All code generated"
+generate: wire swagger ## Run all code generation (wire + swagger)
 
 # ============================================================================
-# Application Commands
-# ============================================================================
-
-.PHONY: build
-build: ## Build the application
-	@echo "Building $(PROJECT_NAME)..."
-	go build -o bin/server ./cmd/server
-	@echo "✅ Built bin/server"
-
-.PHONY: run
-run: ## Run the application
-	@echo "Running $(PROJECT_NAME)..."
-	go run ./cmd/server
-
-.PHONY: dev
-dev: docker-up ## Start infrastructure and run application
-	@echo "Starting development server..."
-	@sleep 2
-	@make run
-
-# ============================================================================
-# Testing
+# Testing & Quality
 # ============================================================================
 
 .PHONY: test
-test: ## Run tests
-	go test -v -race -cover ./...
+test: ## Run all tests
+	@go test -v -race -coverprofile=coverage.out ./...
 
-.PHONY: test-unit
-test-unit: ## Run unit tests only
-	go test -v -race -short ./...
-
-.PHONY: test-integration
-test-integration: docker-up ## Run integration tests
-	go test -v -race -tags=integration ./...
+.PHONY: test-short
+test-short: ## Run tests (short mode, skip slow tests)
+	@go test -v -short ./...
 
 .PHONY: test-coverage
-test-coverage: ## Run tests with coverage report
-	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report: coverage.html"
-
-# ============================================================================
-# Code Quality
-# ============================================================================
+test-coverage: test ## Run tests and open coverage report
+	@go tool cover -html=coverage.out
 
 .PHONY: lint
 lint: ## Run linter
-	golangci-lint run --timeout 5m
+	@golangci-lint run ./...
 
 .PHONY: fmt
 fmt: ## Format code
-	go fmt ./...
-	goimports -w .
+	@go fmt ./...
+	@goimports -w .
 
 .PHONY: vet
 vet: ## Run go vet
-	go vet ./...
+	@go vet ./...
 
-.PHONY: tidy
-tidy: ## Tidy go modules
-	go mod tidy
-
-# ============================================================================
-# Dependency Management
-# ============================================================================
-
-.PHONY: deps
-deps: ## Download dependencies
-	go mod download
-
-.PHONY: deps-upgrade
-deps-upgrade: ## Upgrade all dependencies
-	go get -u ./...
-	go mod tidy
+.PHONY: check
+check: fmt vet lint test-short ## Run all checks (fmt, vet, lint, test)
 
 # ============================================================================
-# Clean
+# Utilities
 # ============================================================================
 
-.PHONY: clean
-clean: ## Clean build artifacts
-	rm -rf bin/
-	rm -f coverage.out coverage.html
-	rm -rf tmp/
-
-.PHONY: clean-all
-clean-all: clean proto-clean docker-down-volumes ## Clean everything including Docker volumes
-	@echo "✅ Everything cleaned"
-
-# ============================================================================
-# Development Tools
-# ============================================================================
-
-.PHONY: dev-tools
-dev-tools: proto-install migrate-install ## Install all development tools
-	@echo "Installing development tools..."
-	go install github.com/cosmtrek/air@latest
-	go install github.com/google/wire/cmd/wire@latest
-	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	go install golang.org/x/tools/cmd/goimports@latest
-	@echo "✅ Development tools installed"
-
-# ============================================================================
-# Git Hooks
-# ============================================================================
-
-.PHONY: setup-hooks
-setup-hooks: ## Set up git hooks
-	@echo "Setting up git hooks..."
-	@mkdir -p .git/hooks
-	@echo '#!/bin/sh' > .git/hooks/pre-commit
-	@echo 'make fmt' >> .git/hooks/pre-commit
-	@echo 'make vet' >> .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@echo "✅ Git hooks installed"
-
-# ============================================================================
-# Hot Reload Development
-# ============================================================================
-
-.PHONY: dev-watch
-dev-watch: ## Run with hot-reload using air
-	@echo "Starting development server with hot-reload..."
-	@if ! command -v air > /dev/null; then \
-		echo "❌ Air not installed. Run: make dev-tools"; \
-		exit 1; \
-	fi
-	air
-
-.PHONY: dev-race
-dev-race: ## Run with race detector
-	@echo "Running with race detector..."
-	air -- -race
-
-.PHONY: dev-clean
-dev-clean: ## Clean development artifacts
-	@echo "Cleaning development artifacts..."
-	rm -rf tmp/
-	rm -f build-errors.log
-	@echo "✅ Development artifacts cleaned"
-
-# ============================================================================
-# Full Setup
-# ============================================================================
-
-.PHONY: setup
-setup: dev-tools docker-up migrate-sync migrate-up ## Full project setup
-	@echo "✅ Project setup complete!"
-	@echo ""
-	@echo "Next steps:"
-	@echo "  1. Copy .env.example to .env and configure"
-	@echo "  2. Run 'make generate' to generate code"
-	@echo "  3. Run 'make dev' to start the server"
-
-.PHONY: reset
-reset: clean-all setup ## Reset and setup project from scratch
-	@echo "✅ Project reset complete!"
-
-# ============================================================================
-# gRPC Server Commands
-# ============================================================================
-
-.PHONY: grpc-start
-grpc-start: ## Start gRPC server
-	@echo "Starting gRPC server on port $(GRPC_PORT)..."
-	go run ./cmd/server
-
-.PHONY: grpc-health
-grpc-health: ## Check gRPC server health
-	@echo "Checking gRPC server health on localhost:$(GRPC_PORT)..."
-	@grpcurl -plaintext localhost:$(GRPC_PORT) grpc.health.v1.Health/Check || \
-		echo "❌ Server not responding or grpcurl not installed"
-
-.PHONY: grpc-list
-grpc-list: ## List available gRPC services
-	@echo "Available gRPC services on localhost:$(GRPC_PORT):"
-	@grpcurl -plaintext localhost:$(GRPC_PORT) list || \
-		echo "❌ Server not running or grpcurl not installed. Run: brew install grpcurl"
-
-.PHONY: grpc-describe
-grpc-describe: ## Describe a gRPC service (usage: make grpc-describe service=users.v1.UserService)
-	@if [ -z "$(service)" ]; then \
-		echo "Error: service is required. Usage: make grpc-describe service=users.v1.UserService"; \
-		exit 1; \
-	fi
-	@grpcurl -plaintext localhost:$(GRPC_PORT) describe $(service)
-
-.PHONY: grpc-call
-grpc-call: ## Call a gRPC method (usage: make grpc-call method=users.v1.UserService/GetUser data='{"user_id":"123"}')
-	@if [ -z "$(method)" ]; then \
-		echo "Error: method is required. Usage: make grpc-call method=users.v1.UserService/GetUser data='{\"user_id\":\"123\"}'"; \
-		exit 1; \
-	fi
-	@if [ -z "$(data)" ]; then \
-		grpcurl -plaintext localhost:$(GRPC_PORT) $(method); \
+.PHONY: env-example
+env-example: ## Create .env.example from current .env (strips values)
+	@if [ -f .env ]; then \
+		sed 's/=.*/=/' .env > .env.example; \
+		echo "✓ Created .env.example"; \
 	else \
-		grpcurl -plaintext -d '$(data)' localhost:$(GRPC_PORT) $(method); \
-	fi
-
-.PHONY: grpc-install-tools
-grpc-install-tools: ## Install grpcurl for testing gRPC endpoints
-	@echo "Installing grpcurl..."
-	@if command -v brew > /dev/null; then \
-		brew install grpcurl; \
-	else \
-		go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest; \
-	fi
-	@echo "✅ grpcurl installed"
-
-.PHONY: grpc-gateway-start
-grpc-gateway-start: ## Start gRPC-Gateway (REST proxy)
-	@echo "Starting gRPC-Gateway on port $(HTTP_PORT)..."
-	@echo "⚠️  Not yet implemented - will proxy REST → gRPC"
-	# TODO: Implement when we add HTTP gateway server
-
-.PHONY: grpc-test-create-user
-grpc-test-create-user: ## Test CreateUser endpoint
-	@echo "Testing CreateUser..."
-	@grpcurl -plaintext \
-		-d '{"email":"test@example.com","username":"testuser","password":"password123"}' \
-		localhost:$(GRPC_PORT) users.v1.UserService/CreateUser
-
-.PHONY: grpc-test-get-user
-grpc-test-get-user: ## Test GetUser endpoint (usage: make grpc-test-get-user id=USER_ID)
-	@if [ -z "$(id)" ]; then \
-		echo "Error: id is required. Usage: make grpc-test-get-user id=USER_ID"; \
+		echo "Error: .env not found"; \
 		exit 1; \
 	fi
-	@echo "Testing GetUser..."
-	@grpcurl -plaintext \
-		-d '{"user_id":"$(id)"}' \
-		localhost:$(GRPC_PORT) users.v1.UserService/GetUser
+
+.PHONY: env-create
+env-create: ## Create new env file (NAME=api2 creates .env.api2)
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME is required"; \
+		echo "Usage: make env-create NAME=api2"; \
+		exit 1; \
+	fi
+	@if [ -f .env.$(NAME) ]; then \
+		echo "Error: .env.$(NAME) already exists"; \
+		exit 1; \
+	fi
+	@cp .env .env.$(NAME)
+	@echo "✓ Created .env.$(NAME) (edit to customize)"
+
+.DEFAULT_GOAL := help

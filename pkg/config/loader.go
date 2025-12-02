@@ -1,179 +1,127 @@
-// pkg/config/loader.go
 package config
 
 import (
+	"context"
 	"fmt"
-	"reflect"
-	"time"
 )
 
-// Load populates a config struct from environment variables using reflection.
-// The cfg parameter must be a pointer to a struct.
-// Returns the same pointer on success.
-func Load[T any](cfg T) (T, error) {
-	return LoadWithPrefix(cfg, "")
+// Loader loads configuration from sources into a target struct.
+// It is stateless and can be used multiple times.
+type Loader struct {
+	sources []Source
+	options *LoadOptions
 }
 
-// LoadWithPrefix is like Load but prepends a prefix to all environment variable names.
-func LoadWithPrefix[T any](cfg T, prefix string) (T, error) {
-	var zero T
+// Source represents a configuration source (file, env, etc.)
+type Source interface {
+	// Load loads configuration into the target struct
+	Load(ctx context.Context, target any) error
 
-	v := reflect.ValueOf(cfg)
-
-	// Must be a pointer to a struct
-	if v.Kind() != reflect.Ptr {
-		return zero, fmt.Errorf("config must be a pointer to a struct, got %T", cfg)
-	}
-
-	v = v.Elem()
-	if v.Kind() != reflect.Struct {
-		return zero, fmt.Errorf("config must be a pointer to a struct, got pointer to %s", v.Kind())
-	}
-
-	t := v.Type()
-
-	// Iterate through struct fields
-	for i := 0; i < v.NumField(); i++ {
-		field := v.Field(i)
-		fieldType := t.Field(i)
-
-		// Skip unexported fields
-		if !field.CanSet() {
-			continue
-		}
-
-		// Get struct tags
-		envTag := fieldType.Tag.Get("env")
-		defaultTag := fieldType.Tag.Get("default")
-		requiredTag := fieldType.Tag.Get("required")
-
-		// Skip fields without env tag
-		if envTag == "" {
-			continue
-		}
-
-		// Build full env var name with prefix
-		envKey := prefix + envTag
-
-		// Get value from environment
-		envValue, exists := GetEnvRequired(envKey)
-
-		// Handle required fields
-		if requiredTag == "true" {
-			if !exists || envValue == "" {
-				return zero, fmt.Errorf("required environment variable %s is not set", envKey)
-			}
-		}
-
-		// Use default if not set
-		if !exists || envValue == "" {
-			envValue = defaultTag
-		}
-
-		// Skip if still empty
-		if envValue == "" {
-			continue
-		}
-
-		// Parse and set value based on field type
-		if err := setField(field, envValue, envKey); err != nil {
-			return zero, err
-		}
-	}
-
-	return cfg, nil
+	// Name returns the source name for debugging
+	Name() string
 }
 
-// setField sets a struct field value by parsing the string value according to the field type
-func setField(field reflect.Value, value string, envKey string) error {
-	switch field.Kind() {
-	case reflect.String:
-		field.SetString(value)
+// LoadOptions configures the loading behavior.
+type LoadOptions struct {
+	// Validator validates the loaded config
+	Validator Validator
 
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		// Special handling for time.Duration
-		if field.Type() == reflect.TypeOf(time.Duration(0)) {
-			d, err := ParseDuration(value)
-			if err != nil {
-				return fmt.Errorf("failed to parse %s as duration: %w", envKey, err)
+	// FailOnMissingSource causes loading to fail if a source doesn't exist
+	// Default: false (missing sources are skipped)
+	FailOnMissingSource bool
+
+	// MergeStrategy determines how multiple sources are merged
+	// Default: SourcesOverride (later sources override earlier)
+	MergeStrategy MergeStrategy
+}
+
+// MergeStrategy determines how configuration from multiple sources is combined.
+type MergeStrategy string
+
+const (
+	// SourcesOverride means later sources override earlier sources
+	SourcesOverride MergeStrategy = "override"
+
+	// SourcesMergeDeep means sources are deep-merged (nested structs combined)
+	SourcesMergeDeep MergeStrategy = "deep_merge"
+)
+
+// Validator validates configuration.
+type Validator interface {
+	Validate(ctx context.Context, v any) error
+}
+
+// NewLoader creates a new configuration loader.
+func NewLoader(sources []Source, opts ...LoadOption) *Loader {
+	options := &LoadOptions{
+		MergeStrategy:       SourcesOverride,
+		FailOnMissingSource: false,
+	}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	return &Loader{
+		sources: sources,
+		options: options,
+	}
+}
+
+// Load loads configuration from all sources into target.
+// target must be a pointer to a struct.
+func (l *Loader) Load(ctx context.Context, target any) error {
+	if target == nil {
+		return fmt.Errorf("target cannot be nil")
+	}
+
+	// Validate target is a pointer to struct
+	if err := validateTarget(target); err != nil {
+		return err
+	}
+
+	// Load from each source in order
+	for _, source := range l.sources {
+		if err := source.Load(ctx, target); err != nil {
+			// Check if error is because source doesn't exist
+			if isMissingSourceError(err) && !l.options.FailOnMissingSource {
+				// Skip missing sources silently
+				continue
 			}
-			field.SetInt(int64(d))
-		} else {
-			i, err := ParseInt64(value)
-			if err != nil {
-				return fmt.Errorf("failed to parse %s as integer: %w", envKey, err)
-			}
-			field.SetInt(i)
+			return fmt.Errorf("failed to load from source %s: %w", source.Name(), err)
 		}
+	}
 
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		i, err := ParseInt64(value)
-		if err != nil || i < 0 {
-			return fmt.Errorf("failed to parse %s as unsigned integer: %w", envKey, err)
+	// Validate if validator is configured
+	if l.options.Validator != nil {
+		if err := l.options.Validator.Validate(ctx, target); err != nil {
+			return fmt.Errorf("validation failed: %w", err)
 		}
-		field.SetUint(uint64(i))
-
-	case reflect.Float32, reflect.Float64:
-		f, err := ParseFloat(value)
-		if err != nil {
-			return fmt.Errorf("failed to parse %s as float: %w", envKey, err)
-		}
-		field.SetFloat(f)
-
-	case reflect.Bool:
-		b, err := ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("failed to parse %s as boolean: %w", envKey, err)
-		}
-		field.SetBool(b)
-
-	case reflect.Slice:
-		if err := setSliceField(field, value, envKey); err != nil {
-			return err
-		}
-
-	default:
-		return fmt.Errorf("unsupported field type %s for %s", field.Kind(), envKey)
 	}
 
 	return nil
 }
 
-// setSliceField handles slice type fields
-func setSliceField(field reflect.Value, value string, envKey string) error {
-	switch field.Type().Elem().Kind() {
-	case reflect.String:
-		slice := ParseStringSlice(value)
-		field.Set(reflect.ValueOf(slice))
+// LoadOption configures a Loader.
+type LoadOption func(*LoadOptions)
 
-	case reflect.Int:
-		slice, err := ParseIntSlice(value)
-		if err != nil {
-			return fmt.Errorf("failed to parse %s as integer slice: %w", envKey, err)
-		}
-		field.Set(reflect.ValueOf(slice))
-
-	default:
-		return fmt.Errorf("unsupported slice type %s for %s", field.Type().Elem().Kind(), envKey)
+// WithValidator sets a validator for the loaded configuration.
+func WithValidator(validator Validator) LoadOption {
+	return func(o *LoadOptions) {
+		o.Validator = validator
 	}
-
-	return nil
 }
 
-// MustLoad is like Load but panics on error.
-func MustLoad[T any](cfg T) T {
-	result, err := Load(cfg)
-	if err != nil {
-		panic(err)
+// WithFailOnMissingSource causes loading to fail if a source doesn't exist.
+func WithFailOnMissingSource() LoadOption {
+	return func(o *LoadOptions) {
+		o.FailOnMissingSource = true
 	}
-	return result
 }
 
-// MustLoadWithPrefix is like LoadWithPrefix but panics on error.
-func MustLoadWithPrefix[T any](cfg T, prefix string) T {
-	result, err := LoadWithPrefix(cfg, prefix)
-	if err != nil {
-		panic(err)
+// WithMergeStrategy sets the merge strategy for multiple sources.
+func WithMergeStrategy(strategy MergeStrategy) LoadOption {
+	return func(o *LoadOptions) {
+		o.MergeStrategy = strategy
 	}
-	return result
 }
