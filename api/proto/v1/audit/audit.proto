@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package nexus.audit.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/common.proto";
+
+option go_package = "github.com/0xsj/nexus-go/gen/proto/v1/audit;auditv1";
+
+// ============================================================================
+// Core Messages
+// ============================================================================
+
+message AuditEntry {
+  string id = 1;
+  string event_id = 2;
+  string event_type = 3;
+  string source = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  string tenant_id = 6;
+  string user_id = 7;
+  string correlation_id = 8;
+  google.protobuf.Struct payload = 9;
+  google.protobuf.Struct metadata = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message AuditEntrySummary {
+  string id = 1;
+  string event_type = 2;
+  string source = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string tenant_id = 5;
+  string user_id = 6;
+  string correlation_id = 7;
+}
+
+message AuditFilter {
+  string tenant_id = 1;
+  string user_id = 2;
+  string event_type = 3;
+  string source = 4;
+  string correlation_id = 5;
+  google.protobuf.Timestamp start_time = 6;
+  google.protobuf.Timestamp end_time = 7;
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+// GetEntry
+message GetEntryRequest {
+  string id = 1;
+}
+
+message GetEntryResponse {
+  AuditEntry entry = 1;
+}
+
+// ListEntries
+message ListEntriesRequest {
+  AuditFilter filter = 1;
+  nexus.common.v1.PageRequest pagination = 2;
+}
+
+message ListEntriesResponse {
+  repeated AuditEntrySummary entries = 1;
+  nexus.common.v1.PageResponse pagination = 2;
+}
+
+// GetActorActivity
+message GetActorActivityRequest {
+  string user_id = 1;
+  string tenant_id = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
+  nexus.common.v1.PageRequest pagination = 5;
+}
+
+message GetActorActivityResponse {
+  repeated AuditEntrySummary entries = 1;
+  nexus.common.v1.PageResponse pagination = 2;
+}
+
+// GetResourceTrail
+message GetResourceTrailRequest {
+  string resource_type = 1;
+  string resource_id = 2;
+  string tenant_id = 3;
+  google.protobuf.Timestamp start_time = 4;
+  google.protobuf.Timestamp end_time = 5;
+  nexus.common.v1.PageRequest pagination = 6;
+}
+
+message GetResourceTrailResponse {
+  repeated AuditEntrySummary entries = 1;
+  nexus.common.v1.PageResponse pagination = 2;
+}
+
+// ============================================================================
+// Service (Query-only - entries created via event subscribers)
+// ============================================================================
+
+service AuditService {
+  rpc GetEntry(GetEntryRequest) returns (GetEntryResponse);
+  rpc ListEntries(ListEntriesRequest) returns (ListEntriesResponse);
+  rpc GetActorActivity(GetActorActivityRequest) returns (GetActorActivityResponse);
+  rpc GetResourceTrail(GetResourceTrailRequest) returns (GetResourceTrailResponse);
+}

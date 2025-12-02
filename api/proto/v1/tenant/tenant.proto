@@ -1,0 +1,198 @@
+syntax = "proto3";
+
+package nexus.tenant.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/common.proto";
+
+option go_package = "github.com/0xsj/nexus-go/gen/proto/v1/tenant;tenantv1";
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+enum TenantStatus {
+  TENANT_STATUS_UNSPECIFIED = 0;
+  TENANT_STATUS_TRIALING = 1;
+  TENANT_STATUS_ACTIVE = 2;
+  TENANT_STATUS_SUSPENDED = 3;
+  TENANT_STATUS_CANCELLED = 4;
+  TENANT_STATUS_DELETED = 5;
+}
+
+enum TenantPlan {
+  TENANT_PLAN_UNSPECIFIED = 0;
+  TENANT_PLAN_FREE = 1;
+  TENANT_PLAN_STARTER = 2;
+  TENANT_PLAN_PRO = 3;
+  TENANT_PLAN_ENTERPRISE = 4;
+}
+
+// ============================================================================
+// Core Messages
+// ============================================================================
+
+message Tenant {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  TenantPlan plan = 4;
+  TenantStatus status = 5;
+  google.protobuf.Struct settings = 6;
+  string owner_id = 7;
+  string owner_email = 8;
+  optional string billing_id = 9;
+  optional google.protobuf.Timestamp trial_ends_at = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+  int32 version = 13;
+}
+
+message TenantSummary {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  TenantPlan plan = 4;
+  TenantStatus status = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message TenantFilter {
+  repeated TenantStatus statuses = 1;
+  repeated TenantPlan plans = 2;
+  string slug_contains = 3;
+  string name_contains = 4;
+  string owner_id = 5;
+  google.protobuf.Timestamp created_after = 6;
+  google.protobuf.Timestamp created_before = 7;
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+// Create
+message CreateTenantRequest {
+  string slug = 1;
+  string name = 2;
+  TenantPlan plan = 3;
+  string owner_id = 4;
+  string owner_email = 5;
+  optional google.protobuf.Struct settings = 6;
+}
+
+message CreateTenantResponse {
+  Tenant tenant = 1;
+}
+
+// Get
+message GetTenantRequest {
+  string id = 1;
+}
+
+message GetTenantResponse {
+  Tenant tenant = 1;
+}
+
+// GetBySlug
+message GetTenantBySlugRequest {
+  string slug = 1;
+}
+
+message GetTenantBySlugResponse {
+  Tenant tenant = 1;
+}
+
+// List
+message ListTenantsRequest {
+  TenantFilter filter = 1;
+  nexus.common.v1.PageRequest pagination = 2;
+}
+
+message ListTenantsResponse {
+  repeated TenantSummary tenants = 1;
+  nexus.common.v1.PageResponse pagination = 2;
+}
+
+// Update
+message UpdateTenantRequest {
+  string id = 1;
+  optional string name = 2;
+}
+
+message UpdateTenantResponse {
+  Tenant tenant = 1;
+}
+
+// UpdateSettings
+message UpdateSettingsRequest {
+  string id = 1;
+  google.protobuf.Struct settings = 2;
+}
+
+message UpdateSettingsResponse {
+  Tenant tenant = 1;
+}
+
+// ChangePlan
+message ChangePlanRequest {
+  string id = 1;
+  TenantPlan plan = 2;
+  string reason = 3;
+}
+
+message ChangePlanResponse {
+  Tenant tenant = 1;
+}
+
+// Suspend
+message SuspendTenantRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message SuspendTenantResponse {
+  bool success = 1;
+}
+
+// Reactivate
+message ReactivateTenantRequest {
+  string id = 1;
+}
+
+message ReactivateTenantResponse {
+  bool success = 1;
+}
+
+// Delete
+message DeleteTenantRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message DeleteTenantResponse {
+  bool success = 1;
+}
+
+// ============================================================================
+// Service
+// ============================================================================
+
+service TenantService {
+  // Queries
+  rpc GetTenant(GetTenantRequest) returns (GetTenantResponse);
+  rpc GetTenantBySlug(GetTenantBySlugRequest) returns (GetTenantBySlugResponse);
+  rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
+
+  // Commands
+  rpc CreateTenant(CreateTenantRequest) returns (CreateTenantResponse);
+  rpc UpdateTenant(UpdateTenantRequest) returns (UpdateTenantResponse);
+  rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse);
+  rpc ChangePlan(ChangePlanRequest) returns (ChangePlanResponse);
+
+  // Status management
+  rpc SuspendTenant(SuspendTenantRequest) returns (SuspendTenantResponse);
+  rpc ReactivateTenant(ReactivateTenantRequest) returns (ReactivateTenantResponse);
+  rpc DeleteTenant(DeleteTenantRequest) returns (DeleteTenantResponse);
+}
