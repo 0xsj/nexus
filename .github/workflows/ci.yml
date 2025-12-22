@@ -6,130 +6,60 @@ on:
   pull_request:
     branches: [main, dev]
 
-env:
-  GO_VERSION: "1.25"
-
 jobs:
-  # ============================================================================
-  # Test
-  # ============================================================================
-  test:
-    name: Test
+  platform:
+    name: Platform (Go)
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    defaults:
+      run:
+        working-directory: platform
 
-      - name: Setup Go
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
+          go-version: "1.25"
 
-      - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: coverage.out
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-  # ============================================================================
-  # Build
-  # ============================================================================
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Build API
-        run: go build -o bin/api ./cmd/api
-
-      - name: Build Worker
-        run: go build -o bin/worker ./cmd/worker
-
-  # ============================================================================
-  # Wire Check
-  # ============================================================================
-  wire:
-    name: Wire Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Install Wire
-        run: go install github.com/google/wire/cmd/wire@latest
-
-      - name: Check Wire
+      - name: Format check
         run: |
-          find . \( -name "wire.go" -o -name "provider.go" \) -not -path "./vendor/*" -not -path "./tmp/*" | while read -r file; do
-            if grep -q "wireinject" "$file" 2>/dev/null; then
-              dir=$(dirname "$file")
-              echo "Checking $dir"
-              (cd "$dir" && wire check) || exit 1
-            fi
-          done
+          if [ -n "$(go fmt ./...)" ]; then
+            echo "Code is not formatted. Run 'make fmt'"
+            exit 1
+          fi
 
-  # ============================================================================
-  # Security
-  # ============================================================================
-  security:
-    name: Security Scan
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -race -cover ./...
+
+  frontend:
+    name: Frontend (Next.js)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Run govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+      - name: Install dependencies
+        run: npm ci
 
-  # ============================================================================
-  # Lint (disabled until errors are fixed)
-  # ============================================================================
-  # lint:
-  #   name: Lint
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Setup Go
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version: ${{ env.GO_VERSION }}
-  #         cache: true
-  #
-  #     - name: Run golangci-lint
-  #       uses: golangci/golangci-lint-action@v6
-  #       with:
-  #         version: latest
-  #         args: --timeout=5m
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
