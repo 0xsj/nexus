@@ -1,0 +1,60 @@
+# ====================
+# OS
+# ====================
+.DS_Store
+Thumbs.db
+
+# ====================
+# IDEs
+# ====================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ====================
+# Go (platform/)
+# ====================
+platform/bin/
+platform/tmp/
+platform/*.exe
+platform/*.exe~
+platform/*.dll
+platform/*.so
+platform/*.dylib
+platform/*.test
+platform/*.out
+platform/coverage.out
+platform/coverage.html
+platform/.env
+platform/.env.local
+
+# ====================
+# Node (frontend/)
+# ====================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ====================
+# Infra
+# ====================
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfvars
+infra/.env
+
+# ====================
+# Misc
+# ====================
+*.log
+*.tmp
+.env

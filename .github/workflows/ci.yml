@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  platform:
+    name: Platform (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Format check
+        run: |
+          if [ -n "$(go fmt ./...)" ]; then
+            echo "Code is not formatted. Run 'make fmt'"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -race -cover ./...
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
