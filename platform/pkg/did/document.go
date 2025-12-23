@@ -275,6 +275,18 @@ func (d *Document) AddKeyAgreement(ref string) *Document {
 	return d
 }
 
+// AddCapabilityInvocation adds a capability invocation relationship.
+func (d *Document) AddCapabilityInvocation(ref string) *Document {
+	d.CapabilityInvocation = append(d.CapabilityInvocation, VerificationRelationship{Reference: ref})
+	return d
+}
+
+// AddCapabilityDelegation adds a capability delegation relationship.
+func (d *Document) AddCapabilityDelegation(ref string) *Document {
+	d.CapabilityDelegation = append(d.CapabilityDelegation, VerificationRelationship{Reference: ref})
+	return d
+}
+
 // AddService adds a service endpoint.
 func (d *Document) AddService(svc Service) *Document {
 	d.Service = append(d.Service, svc)
