@@ -1,0 +1,61 @@
+name: nexus
+
+services:
+  # ============================================================================
+  # Platform API (Go)
+  # ============================================================================
+  api:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/platform.Dockerfile
+    container_name: nexus-api
+    ports:
+      - "8090:8090"
+    environment:
+      - PORT=8090
+      - DATABASE_URL=postgres://nexus:nexus@postgres:5432/nexus?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================================================
+  # Frontend (Next.js)
+  # ============================================================================
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/frontend.Dockerfile
+    container_name: nexus-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8090
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ============================================================================
+  # PostgreSQL
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexus-postgres
+    ports:
+      - "5439:5432"
+    environment:
+      - POSTGRES_USER=nexus
+      - POSTGRES_PASSWORD=nexus
+      - POSTGRES_DB=nexus
+    volumes:
+      - nexus-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  nexus-postgres-data:
