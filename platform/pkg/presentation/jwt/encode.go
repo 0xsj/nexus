@@ -69,14 +69,20 @@ func (s *Signer) Sign(p *presentation.Presentation, opts presentation.SigningOpt
 		now = opts.Created
 	}
 
+	// Determine nonce - use Challenge if Nonce is not set
+	nonce := opts.Nonce
+	if nonce == "" {
+		nonce = opts.Challenge
+	}
+
 	// Build JWT claims
 	claims := Claims{
-		Issuer:    s.holderDID.String(), // In VP, holder is the "issuer" of the presentation
+		Issuer:    s.holderDID.String(),
 		Subject:   s.holderDID.String(),
 		IssuedAt:  now,
 		NotBefore: now,
 		JWTID:     p.ID,
-		Nonce:     opts.Nonce,
+		Nonce:     nonce,
 		VP:        buildVPClaim(p),
 	}
 
