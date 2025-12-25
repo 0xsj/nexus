@@ -3,19 +3,33 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/0xsj/nexus/platform/pkg/observability"
+	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-	slog.SetDefault(logger)
+	// Initialize observability provider
+	obs := observability.NewBuilder().
+		WithLogLevel("debug").
+		WithColorize(true).
+		WithCaller(true).
+		WithComponent("api-server").
+		Build()
+
+	// Get logger
+	logger := obs.Logger()
+
+	// Start observability
+	ctx := context.Background()
+	if err := obs.Start(ctx); err != nil {
+		logger.Fatal("failed to start observability", log.Err(err))
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -23,8 +37,8 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handleHealth)
-	mux.HandleFunc("GET /ready", handleReady)
+	mux.HandleFunc("GET /health", handleHealth(logger))
+	mux.HandleFunc("GET /ready", handleReady(logger))
 
 	server := &http.Server{
 		Addr:         ":" + port,
@@ -36,41 +50,65 @@ func main() {
 
 	// Start server in goroutine
 	go func() {
-		slog.Info("starting server", "port", port)
+		logger.Info("starting server",
+			log.String("port", port),
+			log.String("addr", server.Addr),
+		)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "error", err)
-			os.Exit(1)
+			logger.Fatal("server error", log.Err(err))
 		}
 	}()
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	sig := <-quit
 
-	slog.Info("shutting down server")
+	logger.Info("received shutdown signal",
+		log.String("signal", sig.String()),
+	)
 
 	// Graceful shutdown with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		slog.Error("server shutdown error", "error", err)
+	logger.Info("shutting down server")
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server shutdown error", log.Err(err))
 		os.Exit(1)
 	}
 
-	slog.Info("server stopped")
+	// Stop observability
+	if err := obs.Stop(shutdownCtx); err != nil {
+		logger.Error("observability shutdown error", log.Err(err))
+	}
+
+	logger.Info("server stopped gracefully")
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, `{"status":"healthy"}`)
+func handleHealth(logger log.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("health check requested",
+			log.String("remote_addr", r.RemoteAddr),
+			log.String("user_agent", r.UserAgent()),
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"status":"healthy"}`)
+	}
 }
 
-func handleReady(w http.ResponseWriter, r *http.Request) {
-	// TODO: Check dependencies (database, etc.)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, `{"status":"ready"}`)
+func handleReady(logger log.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("readiness check requested",
+			log.String("remote_addr", r.RemoteAddr),
+		)
+
+		// TODO: Check dependencies (database, etc.)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"status":"ready"}`)
+	}
 }
