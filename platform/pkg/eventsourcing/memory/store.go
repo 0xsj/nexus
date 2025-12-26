@@ -75,9 +75,11 @@ func (s *Store) Load(ctx context.Context, aggregateID string) ([]*eventsourcing.
 		return []*eventsourcing.EventEnvelope{}, nil
 	}
 
-	// Return a copy to prevent external mutation
+	// Return deep copies to prevent external mutation
 	result := make([]*eventsourcing.EventEnvelope, len(events))
-	copy(result, events)
+	for i, e := range events {
+		result[i] = copyEnvelope(e)
+	}
 
 	return result, nil
 }
@@ -103,7 +105,7 @@ func (s *Store) LoadFrom(ctx context.Context, aggregateID string, fromVersion in
 	result := make([]*eventsourcing.EventEnvelope, 0)
 	for _, event := range events {
 		if event.Version >= fromVersion {
-			result = append(result, event)
+			result = append(result, copyEnvelope(event))
 		}
 	}
 
@@ -135,7 +137,7 @@ func (s *Store) LoadByType(ctx context.Context, aggregateType string, opts event
 				continue
 			}
 
-			result = append(result, event)
+			result = append(result, copyEnvelope(event))
 
 			// Check limit
 			if opts.Limit > 0 && len(result) >= opts.Limit {
@@ -206,7 +208,7 @@ func (s *Store) LoadAll(ctx context.Context, opts eventsourcing.LoadOptions) ([]
 				continue
 			}
 
-			result = append(result, event)
+			result = append(result, copyEnvelope(event))
 
 			if opts.Limit > 0 && len(result) >= opts.Limit {
 				return result, nil
@@ -363,6 +365,49 @@ func (s *SnapshotStore) Clear() {
 	defer s.mu.Unlock()
 
 	s.snapshots = make(map[string]*eventsourcing.Snapshot)
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+// copyEnvelope creates a deep copy of an EventEnvelope.
+func copyEnvelope(e *eventsourcing.EventEnvelope) *eventsourcing.EventEnvelope {
+	if e == nil {
+		return nil
+	}
+
+	// Copy data slice
+	dataCopy := make([]byte, len(e.Data))
+	copy(dataCopy, e.Data)
+
+	// Copy metadata custom map
+	var customCopy map[string]any
+	if e.Metadata.Custom != nil {
+		customCopy = make(map[string]any, len(e.Metadata.Custom))
+		for k, v := range e.Metadata.Custom {
+			customCopy[k] = v
+		}
+	}
+
+	return &eventsourcing.EventEnvelope{
+		ID:            e.ID,
+		Type:          e.Type,
+		AggregateID:   e.AggregateID,
+		AggregateType: e.AggregateType,
+		Version:       e.Version,
+		Timestamp:     e.Timestamp,
+		Data:          dataCopy,
+		Metadata: eventsourcing.EventMetadata{
+			CorrelationID: e.Metadata.CorrelationID,
+			CausationID:   e.Metadata.CausationID,
+			UserID:        e.Metadata.UserID,
+			TenantID:      e.Metadata.TenantID,
+			TraceID:       e.Metadata.TraceID,
+			SpanID:        e.Metadata.SpanID,
+			Custom:        customCopy,
+		},
+	}
 }
 
 // ============================================================================

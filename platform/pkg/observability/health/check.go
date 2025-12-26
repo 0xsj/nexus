@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -345,7 +346,7 @@ func Any(checks ...Check) Check {
 				return result.WithDuration(time.Since(start))
 			}
 			if result.Error != "" {
-				lastErr = fmt.Errorf(result.Error)
+				lastErr = errors.New(result.Error)
 			}
 		}
 
