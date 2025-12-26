@@ -28,9 +28,9 @@ type Checker struct {
 
 // registeredCheck holds a check and its options.
 type registeredCheck struct {
-	check    Check
-	options  CheckOptions
-	lastRun  time.Time
+	check      Check
+	options    CheckOptions
+	lastRun    time.Time
 	lastResult *Result
 }
 
