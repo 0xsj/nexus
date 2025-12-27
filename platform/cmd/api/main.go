@@ -4,10 +4,14 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
+	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
+	pkghttp "github.com/0xsj/nexus/platform/pkg/http"
+	"github.com/0xsj/nexus/platform/pkg/http/middleware"
+	"github.com/0xsj/nexus/platform/pkg/http/response"
 	"github.com/0xsj/nexus/platform/pkg/observability"
 	"github.com/0xsj/nexus/platform/pkg/observability/health"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
@@ -42,90 +46,75 @@ func main() {
 		WithDefaultTimeout(5 * time.Second)
 
 	// Register health checks
-	// In a real app, you'd pass actual database/redis connections
 	checker.Register("self", health.AlwaysUp())
-
-	// Example: Register a TCP check (e.g., for an external service)
-	// checker.Register("redis", health.TCP("localhost", 6379))
-
-	// Example: Register a database check
-	// checker.Register("database", health.Database(db))
-
-	// Example: Register an HTTP endpoint check
-	// checker.Register("external-api", health.HTTPEndpoint("https://api.example.com/health"))
-
-	// Example: Register a non-critical check
-	// checker.RegisterNonCritical("cache", health.Redis(redisClient))
 
 	// Create health handler
 	healthHandler := health.NewHandler(checker)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8090"
+	// Get port from environment
+	port := getPort()
+
+	// Create router
+	router := chi.NewRouter()
+
+	// Apply global middleware
+	router.Use(
+		middleware.RequestID(),
+		middleware.Recovery(),
+		middleware.Logger(logger),
+		middleware.CORSAllowAll(), // TODO: Configure for production
+		middleware.Timeout(30*time.Second),
+	)
+
+	// Health routes
+	router.Get("/health", healthHandler.Health)
+	router.Get("/healthz", healthHandler.Liveness)
+	router.Get("/readyz", healthHandler.Readiness)
+	router.Get("/startupz", healthHandler.Startup)
+
+	// API routes
+	router.Route("/api", func(r chi.Router) {
+		r.Route("/v1", func(r chi.Router) {
+			r.Get("/", handleRoot(logger))
+
+			// TODO: Register credential routes
+			// credential.RegisterRoutes(r, credentialHandler)
+		})
+	})
+
+	// Create server config
+	serverConfig := pkghttp.ServerConfig{
+		Port:            port,
+		ReadTimeout:     15 * time.Second,
+		WriteTimeout:    15 * time.Second,
+		IdleTimeout:     60 * time.Second,
+		ShutdownTimeout: 30 * time.Second,
+		Logger:          logger,
 	}
 
-	mux := http.NewServeMux()
+	// Create server
+	server := pkghttp.NewServer(router, serverConfig)
 
-	// Register health routes
-	healthHandler.RegisterRoutes(mux)
-
-	// Application routes
-	mux.HandleFunc("GET /", handleRoot(logger))
-
-	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      mux,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
-	// Start server in goroutine
-	go func() {
-		logger.Info("starting server",
-			log.String("port", port),
-			log.String("version", version),
-		)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("server error", log.Err(err))
-		}
-	}()
-
-	// Mark as started after server begins listening
-	// In production, you might wait for DB connections etc.
+	// Mark as started
 	checker.MarkStarted()
+
 	logger.Info("application ready",
+		log.Int("port", port),
+		log.String("version", version),
 		log.String("health", "/health"),
 		log.String("liveness", "/healthz"),
 		log.String("readiness", "/readyz"),
-		log.String("startup", "/startupz"),
 	)
 
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-quit
-
-	logger.Info("received shutdown signal",
-		log.String("signal", sig.String()),
-	)
-
-	// Mark as not ready for new traffic
-	checker.MarkNotStarted()
-
-	// Graceful shutdown with timeout
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	logger.Info("shutting down server")
-
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.Error("server shutdown error", log.Err(err))
-		os.Exit(1)
+	// Start server with graceful shutdown
+	if err := server.ListenAndServe(); err != nil {
+		logger.Error("server error", log.Err(err))
 	}
 
 	// Stop observability
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	if err := obs.Stop(shutdownCtx); err != nil {
 		logger.Error("observability shutdown error", log.Err(err))
 	}
@@ -133,14 +122,35 @@ func main() {
 	logger.Info("server stopped gracefully")
 }
 
+// getPort returns the port from environment or default.
+func getPort() int {
+	portStr := os.Getenv("PORT")
+	if portStr == "" {
+		return 8090
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 8090
+	}
+
+	return port
+}
+
+// handleRoot handles the root endpoint.
 func handleRoot(logger log.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		requestID := middleware.GetRequestID(r.Context())
+
 		logger.Debug("root endpoint",
+			log.String("request_id", requestID),
 			log.String("remote_addr", r.RemoteAddr),
 		)
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"service":"nexus","status":"running"}`))
+		response.OK(w, map[string]string{
+			"service": "nexus",
+			"status":  "running",
+			"version": version,
+		})
 	}
 }

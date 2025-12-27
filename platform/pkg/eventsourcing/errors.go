@@ -140,6 +140,17 @@ func IsAggregateNotFound(err error) bool {
 	return false
 }
 
+// IsAggregateValidation returns true if the error is an aggregate validation error.
+func IsAggregateValidation(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*errors.Error); ok {
+		return e.Code == CodeAggregateValidation
+	}
+	return false
+}
+
 // IsEventNotFound returns true if the error is an event not found error.
 func IsEventNotFound(err error) bool {
 	if err == nil {

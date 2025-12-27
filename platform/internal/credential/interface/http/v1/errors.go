@@ -1,135 +1,138 @@
 package v1
 
-// import (
-// 	"errors"
-// 	"net/http"
+import (
+	"net/http"
 
-// 	"github.com/0xsj/nexus/platform/pkg/eventsourcing"
-// 	"github.com/0xsj/nexus/platform/pkg/http/response"
-// )
+	"github.com/0xsj/nexus/platform/pkg/cqrs"
+	"github.com/0xsj/nexus/platform/pkg/eventsourcing"
+	pkghttp "github.com/0xsj/nexus/platform/pkg/http"
+	"github.com/0xsj/nexus/platform/pkg/http/response"
+)
 
-// // ============================================================================
-// // Error Codes
-// // ============================================================================
+// ============================================================================
+// Error Codes
+// ============================================================================
 
-// const (
-// 	ErrCodeCredentialNotFound     = "CREDENTIAL_NOT_FOUND"
-// 	ErrCodeCredentialExists       = "CREDENTIAL_ALREADY_EXISTS"
-// 	ErrCodeCredentialInvalidState = "CREDENTIAL_INVALID_STATE"
-// 	ErrCodeCredentialValidation   = "CREDENTIAL_VALIDATION_ERROR"
-// 	ErrCodeCredentialConflict     = "CREDENTIAL_CONCURRENCY_CONFLICT"
-// 	ErrCodeInternalError          = "INTERNAL_ERROR"
-// )
+const (
+	ErrCodeCredentialNotFound     = "CREDENTIAL_NOT_FOUND"
+	ErrCodeCredentialExists       = "CREDENTIAL_ALREADY_EXISTS"
+	ErrCodeCredentialInvalidState = "CREDENTIAL_INVALID_STATE"
+	ErrCodeValidation             = "VALIDATION_ERROR"
+	ErrCodeConflict               = "CONCURRENCY_CONFLICT"
+	ErrCodeInternal               = "INTERNAL_ERROR"
+)
 
-// // ============================================================================
-// // Error Mapping
-// // ============================================================================
+// ============================================================================
+// Error Mapping
+// ============================================================================
 
-// // MapError maps domain errors to HTTP responses.
-// func MapError(err error) (int, *response.ErrorResponse) {
-// 	if err == nil {
-// 		return http.StatusOK, nil
-// 	}
+// MapError maps domain/application errors to HTTP status and response.
+func MapError(err error) (int, *response.ErrorResponse) {
+	if err == nil {
+		return http.StatusOK, nil
+	}
 
-// 	// Check for aggregate not found
-// 	if eventsourcing.IsAggregateNotFound(err) {
-// 		return http.StatusNotFound, &response.ErrorResponse{
-// 			Code:    ErrCodeCredentialNotFound,
-// 			Message: "Credential not found",
-// 			Details: err.Error(),
-// 		}
-// 	}
+	// Aggregate not found
+	if eventsourcing.IsAggregateNotFound(err) {
+		return http.StatusNotFound, &response.ErrorResponse{
+			Code:    ErrCodeCredentialNotFound,
+			Message: "Credential not found",
+			Details: err.Error(),
+		}
+	}
 
-// 	// Check for concurrency conflict
-// 	if eventsourcing.IsConcurrencyConflict(err) {
-// 		return http.StatusConflict, &response.ErrorResponse{
-// 			Code:    ErrCodeCredentialConflict,
-// 			Message: "Credential was modified by another request",
-// 			Details: err.Error(),
-// 		}
-// 	}
+	// Concurrency conflict
+	if eventsourcing.IsConcurrencyConflict(err) {
+		return http.StatusConflict, &response.ErrorResponse{
+			Code:    ErrCodeConflict,
+			Message: "Credential was modified by another request",
+			Details: err.Error(),
+		}
+	}
 
-// 	// Check for validation errors
-// 	if eventsourcing.IsAggregateValidation(err) {
-// 		return http.StatusBadRequest, &response.ErrorResponse{
-// 			Code:    ErrCodeCredentialValidation,
-// 			Message: "Validation error",
-// 			Details: err.Error(),
-// 		}
-// 	}
+	// Aggregate validation (domain validation)
+	if eventsourcing.IsAggregateValidation(err) {
+		return http.StatusBadRequest, &response.ErrorResponse{
+			Code:    ErrCodeCredentialInvalidState,
+			Message: "Invalid credential operation",
+			Details: err.Error(),
+		}
+	}
 
-// 	// Check for already exists (validation with "already exists" message)
-// 	if containsAlreadyExists(err) {
-// 		return http.StatusConflict, &response.ErrorResponse{
-// 			Code:    ErrCodeCredentialExists,
-// 			Message: "Credential already exists",
-// 			Details: err.Error(),
-// 		}
-// 	}
+	// Command validation
+	if cqrs.IsCommandValidation(err) {
+		return http.StatusBadRequest, &response.ErrorResponse{
+			Code:    ErrCodeValidation,
+			Message: "Validation error",
+			Details: err.Error(),
+		}
+	}
 
-// 	// Default to internal error
-// 	return http.StatusInternalServerError, &response.ErrorResponse{
-// 		Code:    ErrCodeInternalError,
-// 		Message: "An internal error occurred",
-// 		Details: err.Error(),
-// 	}
-// }
+	// Request validation errors
+	if validationErrs, ok := pkghttp.AsValidationErrors(err); ok {
+		fields := make([]response.FieldError, len(validationErrs.Errors))
+		for i, e := range validationErrs.Errors {
+			fields[i] = response.FieldError{
+				Field:   e.Field,
+				Message: e.Message,
+			}
+		}
+		return http.StatusBadRequest, &response.ErrorResponse{
+			Code:    ErrCodeValidation,
+			Message: "Validation failed",
+			Fields:  fields,
+		}
+	}
 
-// // containsAlreadyExists checks if the error message contains "already exists".
-// func containsAlreadyExists(err error) bool {
-// 	if err == nil {
-// 		return false
-// 	}
-// 	return contains(err.Error(), "already exists")
-// }
+	// Decode errors
+	if pkghttp.IsDecodeError(err) {
+		return http.StatusBadRequest, &response.ErrorResponse{
+			Code:    ErrCodeValidation,
+			Message: "Invalid request body",
+			Details: err.Error(),
+		}
+	}
 
-// // contains checks if s contains substr (case-insensitive would be better but keeping simple).
-// func contains(s, substr string) bool {
-// 	return len(s) >= len(substr) && searchString(s, substr)
-// }
+	// Default to internal error
+	return http.StatusInternalServerError, &response.ErrorResponse{
+		Code:    ErrCodeInternal,
+		Message: "An internal error occurred",
+		Details: err.Error(),
+	}
+}
 
-// func searchString(s, substr string) bool {
-// 	for i := 0; i <= len(s)-len(substr); i++ {
-// 		if s[i:i+len(substr)] == substr {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
+// ============================================================================
+// Error Response Helpers
+// ============================================================================
 
-// // ============================================================================
-// // Error Response Helpers
-// // ============================================================================
+// WriteError writes an error response based on the error type.
+func WriteError(w http.ResponseWriter, err error) {
+	status, errResp := MapError(err)
+	response.Error(w, status, errResp)
+}
 
-// // ValidationError creates a validation error response.
-// func ValidationError(field, message string) *response.ErrorResponse {
-// 	return &response.ErrorResponse{
-// 		Code:    ErrCodeCredentialValidation,
-// 		Message: "Validation error",
-// 		Details: field + ": " + message,
-// 	}
-// }
+// NotFound writes a 404 not found response.
+func NotFound(w http.ResponseWriter, id string) {
+	response.NotFound(w, &response.ErrorResponse{
+		Code:    ErrCodeCredentialNotFound,
+		Message: "Credential not found",
+		Details: "credential with ID '" + id + "' not found",
+	})
+}
 
-// // NotFoundError creates a not found error response.
-// func NotFoundError(id string) *response.ErrorResponse {
-// 	return &response.ErrorResponse{
-// 		Code:    ErrCodeCredentialNotFound,
-// 		Message: "Credential not found",
-// 		Details: "credential with ID '" + id + "' not found",
-// 	}
-// }
+// ValidationFailed writes a 400 validation error response.
+func ValidationFailed(w http.ResponseWriter, fields []response.FieldError) {
+	response.BadRequest(w, &response.ErrorResponse{
+		Code:    ErrCodeValidation,
+		Message: "Validation failed",
+		Fields:  fields,
+	})
+}
 
-// // InvalidStateError creates an invalid state error response.
-// func InvalidStateError(currentState, requiredState string) *response.ErrorResponse {
-// 	return &response.ErrorResponse{
-// 		Code:    ErrCodeCredentialInvalidState,
-// 		Message: "Invalid credential state",
-// 		Details: "credential is in state '" + currentState + "', required: '" + requiredState + "'",
-// 	}
-// }
-
-// // ============================================================================
-// // Ensure we don't have unused import
-// // ============================================================================
-
-// var _ = errors.New // Keep errors import for future use
+// InvalidState writes a 400 invalid state error response.
+func InvalidState(w http.ResponseWriter, message string) {
+	response.BadRequest(w, &response.ErrorResponse{
+		Code:    ErrCodeCredentialInvalidState,
+		Message: message,
+	})
+}
