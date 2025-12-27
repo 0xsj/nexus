@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/0xsj/nexus/platform/internal/credential"
 	pkghttp "github.com/0xsj/nexus/platform/pkg/http"
 	"github.com/0xsj/nexus/platform/pkg/http/middleware"
 	"github.com/0xsj/nexus/platform/pkg/http/response"
@@ -51,6 +52,12 @@ func main() {
 	// Create health handler
 	healthHandler := health.NewHandler(checker)
 
+	// Initialize credential module
+	credentialModule, err := credential.NewModule(logger)
+	if err != nil {
+		logger.Fatal("failed to initialize credential module", log.Err(err))
+	}
+
 	// Get port from environment
 	port := getPort()
 
@@ -77,8 +84,8 @@ func main() {
 		r.Route("/v1", func(r chi.Router) {
 			r.Get("/", handleRoot(logger))
 
-			// TODO: Register credential routes
-			// credential.RegisterRoutes(r, credentialHandler)
+			// Mount credential routes
+			r.Mount("/", credentialModule.Routes())
 		})
 	})
 
@@ -104,6 +111,7 @@ func main() {
 		log.String("health", "/health"),
 		log.String("liveness", "/healthz"),
 		log.String("readiness", "/readyz"),
+		log.String("credentials", "/api/v1/credentials"),
 	)
 
 	// Start server with graceful shutdown
