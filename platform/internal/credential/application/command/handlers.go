@@ -3,26 +3,10 @@ package command
 import (
 	"context"
 
-	"github.com/0xsj/nexus/platform/internal/credential/aggregate"
+	"github.com/0xsj/nexus/platform/internal/credential/domain"
 	"github.com/0xsj/nexus/platform/pkg/cqrs"
 	"github.com/0xsj/nexus/platform/pkg/eventsourcing"
 )
-
-// ============================================================================
-// Repository Interface
-// ============================================================================
-
-// CredentialRepository defines the interface for credential persistence.
-type CredentialRepository interface {
-	// Load loads a credential aggregate by ID.
-	Load(ctx context.Context, id string) (*aggregate.Credential, error)
-
-	// Save saves a credential aggregate.
-	Save(ctx context.Context, credential *aggregate.Credential) error
-
-	// Exists checks if a credential exists.
-	Exists(ctx context.Context, id string) (bool, error)
-}
 
 // ============================================================================
 // Request Credential Handler
@@ -30,11 +14,11 @@ type CredentialRepository interface {
 
 // RequestCredentialHandler handles RequestCredential commands.
 type RequestCredentialHandler struct {
-	repo CredentialRepository
+	repo domain.CredentialRepository
 }
 
 // NewRequestCredentialHandler creates a new RequestCredentialHandler.
-func NewRequestCredentialHandler(repo CredentialRepository) *RequestCredentialHandler {
+func NewRequestCredentialHandler(repo domain.CredentialRepository) *RequestCredentialHandler {
 	return &RequestCredentialHandler{repo: repo}
 }
 
@@ -53,7 +37,7 @@ func (h *RequestCredentialHandler) Handle(ctx context.Context, cmd *RequestCrede
 	}
 
 	// Create new aggregate
-	credential := aggregate.NewCredential(cmd.CredentialID)
+	credential := domain.NewCredential(cmd.CredentialID)
 
 	// Execute domain logic
 	if err := credential.Request(cmd.HolderDID, cmd.IssuerDID, cmd.CredentialType, cmd.Claims); err != nil {
@@ -77,11 +61,11 @@ func (h *RequestCredentialHandler) Handle(ctx context.Context, cmd *RequestCrede
 
 // IssueCredentialHandler handles IssueCredential commands.
 type IssueCredentialHandler struct {
-	repo CredentialRepository
+	repo domain.CredentialRepository
 }
 
 // NewIssueCredentialHandler creates a new IssueCredentialHandler.
-func NewIssueCredentialHandler(repo CredentialRepository) *IssueCredentialHandler {
+func NewIssueCredentialHandler(repo domain.CredentialRepository) *IssueCredentialHandler {
 	return &IssueCredentialHandler{repo: repo}
 }
 
@@ -92,7 +76,7 @@ func (h *IssueCredentialHandler) Handle(ctx context.Context, cmd *IssueCredentia
 	if err != nil {
 		// If not found, create new aggregate for direct issuance
 		if eventsourcing.IsAggregateNotFound(err) {
-			credential = aggregate.NewCredential(cmd.CredentialID)
+			credential = domain.NewCredential(cmd.CredentialID)
 		} else {
 			return nil, err
 		}
@@ -132,11 +116,11 @@ func (h *IssueCredentialHandler) Handle(ctx context.Context, cmd *IssueCredentia
 
 // RevokeCredentialHandler handles RevokeCredential commands.
 type RevokeCredentialHandler struct {
-	repo CredentialRepository
+	repo domain.CredentialRepository
 }
 
 // NewRevokeCredentialHandler creates a new RevokeCredentialHandler.
-func NewRevokeCredentialHandler(repo CredentialRepository) *RevokeCredentialHandler {
+func NewRevokeCredentialHandler(repo domain.CredentialRepository) *RevokeCredentialHandler {
 	return &RevokeCredentialHandler{repo: repo}
 }
 
@@ -170,11 +154,11 @@ func (h *RevokeCredentialHandler) Handle(ctx context.Context, cmd *RevokeCredent
 
 // SuspendCredentialHandler handles SuspendCredential commands.
 type SuspendCredentialHandler struct {
-	repo CredentialRepository
+	repo domain.CredentialRepository
 }
 
 // NewSuspendCredentialHandler creates a new SuspendCredentialHandler.
-func NewSuspendCredentialHandler(repo CredentialRepository) *SuspendCredentialHandler {
+func NewSuspendCredentialHandler(repo domain.CredentialRepository) *SuspendCredentialHandler {
 	return &SuspendCredentialHandler{repo: repo}
 }
 
@@ -208,11 +192,11 @@ func (h *SuspendCredentialHandler) Handle(ctx context.Context, cmd *SuspendCrede
 
 // ReinstateCredentialHandler handles ReinstateCredential commands.
 type ReinstateCredentialHandler struct {
-	repo CredentialRepository
+	repo domain.CredentialRepository
 }
 
 // NewReinstateCredentialHandler creates a new ReinstateCredentialHandler.
-func NewReinstateCredentialHandler(repo CredentialRepository) *ReinstateCredentialHandler {
+func NewReinstateCredentialHandler(repo domain.CredentialRepository) *ReinstateCredentialHandler {
 	return &ReinstateCredentialHandler{repo: repo}
 }
 
@@ -245,7 +229,7 @@ func (h *ReinstateCredentialHandler) Handle(ctx context.Context, cmd *ReinstateC
 // ============================================================================
 
 // RegisterHandlers registers all credential command handlers with the command bus.
-func RegisterHandlers(bus *cqrs.InMemoryCommandBus, repo CredentialRepository) error {
+func RegisterHandlers(bus *cqrs.InMemoryCommandBus, repo domain.CredentialRepository) error {
 	handlers := map[string]any{
 		TypeRequestCredential:   NewRequestCredentialHandler(repo),
 		TypeIssueCredential:     NewIssueCredentialHandler(repo),
