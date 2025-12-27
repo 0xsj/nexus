@@ -3,7 +3,7 @@ package v1
 import (
 	"time"
 
-	"github.com/0xsj/nexus/platform/internal/credential/query"
+	"github.com/0xsj/nexus/platform/internal/credential/application/query"
 )
 
 // ============================================================================

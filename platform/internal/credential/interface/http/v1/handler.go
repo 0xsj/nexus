@@ -5,13 +5,12 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/0xsj/nexus/platform/internal/credential/application/command"
+	"github.com/0xsj/nexus/platform/internal/credential/application/query"
 	"github.com/0xsj/nexus/platform/pkg/cqrs"
 	"github.com/0xsj/nexus/platform/pkg/http/request"
 	"github.com/0xsj/nexus/platform/pkg/http/response"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
-
-	"github.com/0xsj/nexus/platform/internal/credential/command"
-	"github.com/0xsj/nexus/platform/internal/credential/query"
 )
 
 // ============================================================================
