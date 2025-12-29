@@ -1,39 +1,60 @@
-# Binaries
-bin/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# ====================
+# OS
+# ====================
+.DS_Store
+Thumbs.db
 
-# Test binary
-*.test
-
-# Output of the go coverage tool
-*.out
-coverage.out
-
-# Go workspace file
-go.work
-
-# IDE
+# ====================
+# IDEs
+# ====================
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 
-# OS
-.DS_Store
-Thumbs.db
+# ====================
+# Go (platform/)
+# ====================
+platform/bin/
+platform/tmp/
+platform/*.exe
+platform/*.exe~
+platform/*.dll
+platform/*.so
+platform/*.dylib
+platform/*.test
+platform/*.out
+platform/coverage.out
+platform/coverage.html
+platform/.env
+platform/.env.local
 
-# Environment variables
+# ====================
+# Node (frontend/)
+# ====================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ====================
+# Infra
+# ====================
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfvars
+infra/.env
+
+# ====================
+# Misc
+# ====================
+*.log
+*.tmp
 .env
-.env.local
-.env.*.local
-!.env.example
-
-# Air hot reload
-tmp/
-
-# Wire generated (optional - some prefer to commit these)
-# *_gen.go
