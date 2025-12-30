@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	"github.com/0xsj/nexus/platform/internal/credential/domain"
 	"github.com/0xsj/nexus/platform/pkg/cqrs"
@@ -61,12 +62,16 @@ func (h *RequestCredentialHandler) Handle(ctx context.Context, cmd *RequestCrede
 
 // IssueCredentialHandler handles IssueCredential commands.
 type IssueCredentialHandler struct {
-	repo domain.CredentialRepository
+	repo           domain.CredentialRepository
+	signingService domain.SigningService
 }
 
 // NewIssueCredentialHandler creates a new IssueCredentialHandler.
-func NewIssueCredentialHandler(repo domain.CredentialRepository) *IssueCredentialHandler {
-	return &IssueCredentialHandler{repo: repo}
+func NewIssueCredentialHandler(repo domain.CredentialRepository, signingService domain.SigningService) *IssueCredentialHandler {
+	return &IssueCredentialHandler{
+		repo:           repo,
+		signingService: signingService,
+	}
 }
 
 // Handle handles the IssueCredential command.
@@ -94,8 +99,29 @@ func (h *IssueCredentialHandler) Handle(ctx context.Context, cmd *IssueCredentia
 		claims["credential_type"] = cmd.CredentialType
 	}
 
+	// Sign the credential if signing service is available
+	var signedVC string
+	if h.signingService != nil {
+		issuedAt := time.Now().UTC()
+		params := domain.SigningParams{
+			CredentialID:   cmd.CredentialID,
+			CredentialType: cmd.CredentialType,
+			IssuerDID:      cmd.IssuerDID,
+			HolderDID:      cmd.HolderDID,
+			Claims:         cmd.Claims,
+			IssuedAt:       issuedAt,
+			ExpiresAt:      cmd.ExpiresAt,
+			SchemaID:       cmd.SchemaID,
+		}
+
+		signedVC, err = h.signingService.SignCredential(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Execute domain logic
-	if err := credential.Issue(cmd.IssuerDID, claims, cmd.ExpiresAt, ""); err != nil {
+	if err := credential.Issue(cmd.IssuerDID, claims, cmd.ExpiresAt, signedVC); err != nil {
 		return nil, err
 	}
 
@@ -229,10 +255,10 @@ func (h *ReinstateCredentialHandler) Handle(ctx context.Context, cmd *ReinstateC
 // ============================================================================
 
 // RegisterHandlers registers all credential command handlers with the command bus.
-func RegisterHandlers(bus *cqrs.InMemoryCommandBus, repo domain.CredentialRepository) error {
+func RegisterHandlers(bus *cqrs.InMemoryCommandBus, repo domain.CredentialRepository, signingService domain.SigningService) error {
 	handlers := map[string]any{
 		TypeRequestCredential:   NewRequestCredentialHandler(repo),
-		TypeIssueCredential:     NewIssueCredentialHandler(repo),
+		TypeIssueCredential:     NewIssueCredentialHandler(repo, signingService),
 		TypeRevokeCredential:    NewRevokeCredentialHandler(repo),
 		TypeSuspendCredential:   NewSuspendCredentialHandler(repo),
 		TypeReinstateCredential: NewReinstateCredentialHandler(repo),

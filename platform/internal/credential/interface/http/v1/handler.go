@@ -66,6 +66,45 @@ func (h *Handler) GetCredential(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, FromCredentialView(view))
 }
 
+// GetCredentialVC handles GET /credentials/{id}/vc
+func (h *Handler) GetCredentialVC(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get credential ID from path
+	credentialID, err := request.PathParamRequired(r, "id")
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+
+	// Create and dispatch query
+	q := query.NewGetCredential(credentialID)
+	result, err := h.queryBus.Dispatch(ctx, q)
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+
+	// Convert result
+	view, ok := result.(*query.CredentialView)
+	if !ok {
+		response.InternalError(w, response.ErrInternal("unexpected query result type"))
+		return
+	}
+
+	// Check if credential has a signed VC
+	if !view.HasSignedVC() {
+		response.NotFound(w, &response.ErrorResponse{
+			Code:    ErrCodeCredentialNotFound,
+			Message: "Signed verifiable credential not available",
+			Details: "credential does not have a signed JWT-VC",
+		})
+		return
+	}
+
+	response.OK(w, NewVerifiableCredentialResponse(view.ID, view.SignedVC, view.IssuedAt))
+}
+
 // ListCredentials handles GET /credentials
 func (h *Handler) ListCredentials(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

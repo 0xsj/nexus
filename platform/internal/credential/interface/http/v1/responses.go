@@ -19,6 +19,7 @@ type CredentialResponse struct {
 	IssuerDID      string         `json:"issuer_did"`
 	Status         string         `json:"status"`
 	Claims         map[string]any `json:"claims,omitempty"`
+	HasSignedVC    bool           `json:"has_signed_vc"`
 	IssuedAt       *time.Time     `json:"issued_at,omitempty"`
 	ExpiresAt      *time.Time     `json:"expires_at,omitempty"`
 	RevokedAt      *time.Time     `json:"revoked_at,omitempty"`
@@ -42,6 +43,7 @@ func FromCredentialView(view *query.CredentialView) *CredentialResponse {
 		IssuerDID:      view.IssuerDID,
 		Status:         view.Status,
 		Claims:         view.Claims,
+		HasSignedVC:    view.HasSignedVC(),
 		IssuedAt:       view.IssuedAt,
 		ExpiresAt:      view.ExpiresAt,
 		RevokedAt:      view.RevokedAt,
@@ -85,6 +87,33 @@ func FromCredentialListResult(result *query.CredentialListResult) *CredentialLis
 		Offset:      result.Offset,
 		HasMore:     result.HasMore,
 	}
+}
+
+// ============================================================================
+// Verifiable Credential Response
+// ============================================================================
+
+// VerifiableCredentialResponse is the response for a signed JWT-VC.
+type VerifiableCredentialResponse struct {
+	ID       string `json:"id"`
+	JWT      string `json:"jwt"`
+	Format   string `json:"format"`
+	IssuedAt string `json:"issued_at,omitempty"`
+}
+
+// NewVerifiableCredentialResponse creates a new VerifiableCredentialResponse.
+func NewVerifiableCredentialResponse(id string, jwt string, issuedAt *time.Time) *VerifiableCredentialResponse {
+	resp := &VerifiableCredentialResponse{
+		ID:     id,
+		JWT:    jwt,
+		Format: "jwt_vc",
+	}
+
+	if issuedAt != nil {
+		resp.IssuedAt = issuedAt.Format(time.RFC3339)
+	}
+
+	return resp
 }
 
 // ============================================================================

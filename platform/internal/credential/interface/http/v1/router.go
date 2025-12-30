@@ -49,6 +49,9 @@ func (rt *Router) Routes() chi.Router {
 			// Get credential by ID
 			r.Get("/", rt.handler.GetCredential)
 
+			// Get signed verifiable credential (JWT-VC)
+			r.Get("/vc", rt.handler.GetCredentialVC)
+
 			// Lifecycle operations
 			r.Post("/revoke", rt.handler.RevokeCredential)
 			r.Post("/suspend", rt.handler.SuspendCredential)
