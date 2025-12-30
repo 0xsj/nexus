@@ -9,6 +9,7 @@ import (
 	"github.com/0xsj/nexus/platform/internal/credential/domain"
 	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/persistence/memory"
 	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/signing"
+	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/verification"
 	httpv1 "github.com/0xsj/nexus/platform/internal/credential/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/cqrs"
 	"github.com/0xsj/nexus/platform/pkg/crypto/ed25519"
@@ -60,13 +61,14 @@ func DefaultModuleConfig() ModuleConfig {
 
 // Module is the credential module that provides all credential functionality.
 type Module struct {
-	router         *httpv1.Router
-	repository     *memory.Repository
-	commandBus     *cqrs.InMemoryCommandBus
-	queryBus       *cqrs.InMemoryQueryBus
-	signingService domain.SigningService
-	issuerDID      did.DID
-	logger         log.Logger
+	router              *httpv1.Router
+	repository          *memory.Repository
+	commandBus          *cqrs.InMemoryCommandBus
+	queryBus            *cqrs.InMemoryQueryBus
+	signingService      domain.SigningService
+	verificationService domain.VerificationService
+	issuerDID           did.DID
+	logger              log.Logger
 }
 
 // NewModule creates a new credential module with default configuration.
@@ -96,13 +98,16 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 		issuerDID = issuer
 	}
 
+	// Create verification service
+	verificationService := verification.NewVerifier()
+
 	// Register command handlers
 	if err := command.RegisterHandlers(commandBus, repository, signingService); err != nil {
 		return nil, err
 	}
 
 	// Register query handlers
-	if err := query.RegisterHandlers(queryBus, repository); err != nil {
+	if err := query.RegisterHandlers(queryBus, repository, verificationService); err != nil {
 		return nil, err
 	}
 
@@ -110,13 +115,14 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	router := httpv1.NewRouter(commandBus, queryBus, logger)
 
 	return &Module{
-		router:         router,
-		repository:     repository,
-		commandBus:     commandBus,
-		queryBus:       queryBus,
-		signingService: signingService,
-		issuerDID:      issuerDID,
-		logger:         logger,
+		router:              router,
+		repository:          repository,
+		commandBus:          commandBus,
+		queryBus:            queryBus,
+		signingService:      signingService,
+		verificationService: verificationService,
+		issuerDID:           issuerDID,
+		logger:              logger,
 	}, nil
 }
 
@@ -191,6 +197,11 @@ func (m *Module) Repository() *memory.Repository {
 // SigningService returns the signing service.
 func (m *Module) SigningService() domain.SigningService {
 	return m.signingService
+}
+
+// VerificationService returns the verification service.
+func (m *Module) VerificationService() domain.VerificationService {
+	return m.verificationService
 }
 
 // IssuerDID returns the issuer DID.

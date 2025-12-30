@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/0xsj/nexus/platform/internal/credential/application/query"
+	"github.com/0xsj/nexus/platform/internal/credential/domain"
 )
 
 // ============================================================================
@@ -114,6 +115,59 @@ func NewVerifiableCredentialResponse(id string, jwt string, issuedAt *time.Time)
 	}
 
 	return resp
+}
+
+// ============================================================================
+// Verification Response
+// ============================================================================
+
+// VerificationResponse is the response for credential verification.
+type VerificationResponse struct {
+	Valid           bool                       `json:"valid"`
+	Issuer          string                     `json:"issuer,omitempty"`
+	Holder          string                     `json:"holder,omitempty"`
+	CredentialID    string                     `json:"credential_id,omitempty"`
+	CredentialTypes []string                   `json:"credential_types,omitempty"`
+	Claims          map[string]any             `json:"claims,omitempty"`
+	IssuedAt        *time.Time                 `json:"issued_at,omitempty"`
+	ExpiresAt       *time.Time                 `json:"expires_at,omitempty"`
+	Checks          VerificationChecksResponse `json:"checks"`
+	Error           string                     `json:"error,omitempty"`
+}
+
+// VerificationChecksResponse contains the result of individual verification checks.
+type VerificationChecksResponse struct {
+	Signature  string `json:"signature"`
+	Expiration string `json:"expiration"`
+	NotBefore  string `json:"not_before"`
+	IssuerDID  string `json:"issuer_did"`
+	HolderDID  string `json:"holder_did"`
+}
+
+// FromVerificationResult converts a domain.VerificationResult to a VerificationResponse.
+func FromVerificationResult(result *domain.VerificationResult) *VerificationResponse {
+	if result == nil {
+		return nil
+	}
+
+	return &VerificationResponse{
+		Valid:           result.Valid,
+		Issuer:          result.Issuer,
+		Holder:          result.Holder,
+		CredentialID:    result.CredentialID,
+		CredentialTypes: result.CredentialTypes,
+		Claims:          result.Claims,
+		IssuedAt:        result.IssuedAt,
+		ExpiresAt:       result.ExpiresAt,
+		Checks: VerificationChecksResponse{
+			Signature:  result.Checks.Signature.String(),
+			Expiration: result.Checks.Expiration.String(),
+			NotBefore:  result.Checks.NotBefore.String(),
+			IssuerDID:  result.Checks.IssuerDID.String(),
+			HolderDID:  result.Checks.HolderDID.String(),
+		},
+		Error: result.Error,
+	}
 }
 
 // ============================================================================
