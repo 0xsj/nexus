@@ -95,7 +95,7 @@ func (h *IssueCredentialHandler) Handle(ctx context.Context, cmd *IssueCredentia
 	}
 
 	// Execute domain logic
-	if err := credential.Issue(cmd.IssuerDID, claims, cmd.ExpiresAt); err != nil {
+	if err := credential.Issue(cmd.IssuerDID, claims, cmd.ExpiresAt, ""); err != nil {
 		return nil, err
 	}
 

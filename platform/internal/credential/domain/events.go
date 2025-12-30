@@ -77,6 +77,7 @@ type CredentialIssued struct {
 	CredentialType string         `json:"credential_type"`
 	SchemaID       string         `json:"schema_id,omitempty"`
 	Claims         map[string]any `json:"claims"`
+	SignedVC       string         `json:"signed_vc,omitempty"`
 	IssuedAt       time.Time      `json:"issued_at"`
 	ExpiresAt      *time.Time     `json:"expires_at,omitempty"`
 }
@@ -109,6 +110,12 @@ func NewCredentialIssued(
 // WithSchemaID sets the schema ID.
 func (e *CredentialIssued) WithSchemaID(schemaID string) *CredentialIssued {
 	e.SchemaID = schemaID
+	return e
+}
+
+// WithSignedVC sets the signed verifiable credential JWT.
+func (e *CredentialIssued) WithSignedVC(signedVC string) *CredentialIssued {
+	e.SignedVC = signedVC
 	return e
 }
 

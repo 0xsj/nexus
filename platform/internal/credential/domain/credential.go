@@ -21,8 +21,9 @@ type Credential struct {
 	schemaID       string
 
 	// State
-	status Status
-	claims map[string]any
+	status   Status
+	claims   map[string]any
+	signedVC string
 
 	// Timestamps
 	issuedAt  *time.Time
@@ -88,6 +89,11 @@ func (c *Credential) Claims() map[string]any {
 	return cp
 }
 
+// SignedVC returns the signed verifiable credential JWT.
+func (c *Credential) SignedVC() string {
+	return c.signedVC
+}
+
 // IssuedAt returns when the credential was issued.
 func (c *Credential) IssuedAt() *time.Time {
 	return c.issuedAt
@@ -134,6 +140,11 @@ func (c *Credential) IsExpired() bool {
 	return false
 }
 
+// HasSignedVC returns true if the credential has a signed VC.
+func (c *Credential) HasSignedVC() bool {
+	return c.signedVC != ""
+}
+
 // ============================================================================
 // Commands (Domain Logic)
 // ============================================================================
@@ -166,8 +177,8 @@ func (c *Credential) Request(holderDID, issuerDID, credentialType string, claims
 	return nil
 }
 
-// Issue issues the credential.
-func (c *Credential) Issue(issuerDID string, claims map[string]any, expiresAt *time.Time) error {
+// Issue issues the credential with an optional signed VC.
+func (c *Credential) Issue(issuerDID string, claims map[string]any, expiresAt *time.Time, signedVC string) error {
 	// Validate state transitions
 	if c.status != "" && c.status != StatusPending {
 		return eventsourcing.ErrAggregateValidation(
@@ -206,6 +217,9 @@ func (c *Credential) Issue(issuerDID string, claims map[string]any, expiresAt *t
 
 	// Raise event
 	event := NewCredentialIssued(c.AggregateID(), issuerDID, holderDID, credentialType, claims, expiresAt)
+	if signedVC != "" {
+		event.WithSignedVC(signedVC)
+	}
 	c.Raise(c, event)
 
 	return nil
@@ -342,6 +356,7 @@ func (c *Credential) applyCredentialIssued(e *CredentialIssued) {
 	c.credentialType = e.CredentialType
 	c.schemaID = e.SchemaID
 	c.claims = e.Claims
+	c.signedVC = e.SignedVC
 	c.issuedAt = &e.IssuedAt
 	c.expiresAt = e.ExpiresAt
 	c.status = StatusActive
