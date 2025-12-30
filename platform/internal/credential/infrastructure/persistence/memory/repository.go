@@ -124,6 +124,7 @@ func (r *Repository) updateReadModel(credential *domain.Credential) {
 	view.IssuerDID = credential.IssuerDID()
 	view.Status = credential.Status().String()
 	view.Claims = credential.Claims()
+	view.SignedVC = credential.SignedVC()
 	view.IssuedAt = credential.IssuedAt()
 	view.ExpiresAt = credential.ExpiresAt()
 	view.UpdatedAt = time.Now().UTC()
@@ -333,6 +334,7 @@ func (r *Repository) copyView(v *query.CredentialView) *query.CredentialView {
 		HolderDID:      v.HolderDID,
 		IssuerDID:      v.IssuerDID,
 		Status:         v.Status,
+		SignedVC:       v.SignedVC,
 		CreatedAt:      v.CreatedAt,
 		UpdatedAt:      v.UpdatedAt,
 		Version:        v.Version,

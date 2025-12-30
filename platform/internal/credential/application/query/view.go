@@ -17,6 +17,7 @@ type CredentialView struct {
 	IssuerDID      string         `json:"issuer_did"`
 	Status         string         `json:"status"`
 	Claims         map[string]any `json:"claims,omitempty"`
+	SignedVC       string         `json:"signed_vc,omitempty"`
 	IssuedAt       *time.Time     `json:"issued_at,omitempty"`
 	ExpiresAt      *time.Time     `json:"expires_at,omitempty"`
 	RevokedAt      *time.Time     `json:"revoked_at,omitempty"`
@@ -24,6 +25,11 @@ type CredentialView struct {
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	Version        int            `json:"version"`
+}
+
+// HasSignedVC returns true if the credential has a signed VC.
+func (v *CredentialView) HasSignedVC() bool {
+	return v.SignedVC != ""
 }
 
 // ============================================================================

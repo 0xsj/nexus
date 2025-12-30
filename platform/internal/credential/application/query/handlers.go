@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 
+	"github.com/0xsj/nexus/platform/internal/credential/domain"
 	"github.com/0xsj/nexus/platform/pkg/cqrs"
 )
 
@@ -107,16 +108,36 @@ func (h *GetCredentialsByIssuerHandler) Handle(ctx context.Context, q *GetCreden
 }
 
 // ============================================================================
+// Verify Credential Handler
+// ============================================================================
+
+// VerifyCredentialHandler handles VerifyCredential queries.
+type VerifyCredentialHandler struct {
+	verifier domain.VerificationService
+}
+
+// NewVerifyCredentialHandler creates a new VerifyCredentialHandler.
+func NewVerifyCredentialHandler(verifier domain.VerificationService) *VerifyCredentialHandler {
+	return &VerifyCredentialHandler{verifier: verifier}
+}
+
+// Handle handles the VerifyCredential query.
+func (h *VerifyCredentialHandler) Handle(ctx context.Context, q *VerifyCredential) (*domain.VerificationResult, error) {
+	return h.verifier.VerifyCredential(ctx, q.JWT)
+}
+
+// ============================================================================
 // Handler Registration
 // ============================================================================
 
 // RegisterHandlers registers all credential query handlers with the query bus.
-func RegisterHandlers(bus *cqrs.InMemoryQueryBus, repo CredentialReadRepository) error {
+func RegisterHandlers(bus *cqrs.InMemoryQueryBus, repo CredentialReadRepository, verifier domain.VerificationService) error {
 	handlers := map[string]any{
 		TypeGetCredential:          NewGetCredentialHandler(repo),
 		TypeListCredentials:        NewListCredentialsHandler(repo),
 		TypeGetCredentialsByHolder: NewGetCredentialsByHolderHandler(repo),
 		TypeGetCredentialsByIssuer: NewGetCredentialsByIssuerHandler(repo),
+		TypeVerifyCredential:       NewVerifyCredentialHandler(verifier),
 	}
 
 	for queryType, handler := range handlers {
@@ -137,4 +158,5 @@ var (
 	_ cqrs.QueryHandler[*ListCredentials, *CredentialListResult]        = (*ListCredentialsHandler)(nil)
 	_ cqrs.QueryHandler[*GetCredentialsByHolder, *CredentialListResult] = (*GetCredentialsByHolderHandler)(nil)
 	_ cqrs.QueryHandler[*GetCredentialsByIssuer, *CredentialListResult] = (*GetCredentialsByIssuerHandler)(nil)
+	_ cqrs.QueryHandler[*VerifyCredential, *domain.VerificationResult]  = (*VerifyCredentialHandler)(nil)
 )

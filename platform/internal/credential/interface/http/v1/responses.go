@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/0xsj/nexus/platform/internal/credential/application/query"
+	"github.com/0xsj/nexus/platform/internal/credential/domain"
 )
 
 // ============================================================================
@@ -19,6 +20,7 @@ type CredentialResponse struct {
 	IssuerDID      string         `json:"issuer_did"`
 	Status         string         `json:"status"`
 	Claims         map[string]any `json:"claims,omitempty"`
+	HasSignedVC    bool           `json:"has_signed_vc"`
 	IssuedAt       *time.Time     `json:"issued_at,omitempty"`
 	ExpiresAt      *time.Time     `json:"expires_at,omitempty"`
 	RevokedAt      *time.Time     `json:"revoked_at,omitempty"`
@@ -42,6 +44,7 @@ func FromCredentialView(view *query.CredentialView) *CredentialResponse {
 		IssuerDID:      view.IssuerDID,
 		Status:         view.Status,
 		Claims:         view.Claims,
+		HasSignedVC:    view.HasSignedVC(),
 		IssuedAt:       view.IssuedAt,
 		ExpiresAt:      view.ExpiresAt,
 		RevokedAt:      view.RevokedAt,
@@ -84,6 +87,86 @@ func FromCredentialListResult(result *query.CredentialListResult) *CredentialLis
 		Limit:       result.Limit,
 		Offset:      result.Offset,
 		HasMore:     result.HasMore,
+	}
+}
+
+// ============================================================================
+// Verifiable Credential Response
+// ============================================================================
+
+// VerifiableCredentialResponse is the response for a signed JWT-VC.
+type VerifiableCredentialResponse struct {
+	ID       string `json:"id"`
+	JWT      string `json:"jwt"`
+	Format   string `json:"format"`
+	IssuedAt string `json:"issued_at,omitempty"`
+}
+
+// NewVerifiableCredentialResponse creates a new VerifiableCredentialResponse.
+func NewVerifiableCredentialResponse(id string, jwt string, issuedAt *time.Time) *VerifiableCredentialResponse {
+	resp := &VerifiableCredentialResponse{
+		ID:     id,
+		JWT:    jwt,
+		Format: "jwt_vc",
+	}
+
+	if issuedAt != nil {
+		resp.IssuedAt = issuedAt.Format(time.RFC3339)
+	}
+
+	return resp
+}
+
+// ============================================================================
+// Verification Response
+// ============================================================================
+
+// VerificationResponse is the response for credential verification.
+type VerificationResponse struct {
+	Valid           bool                       `json:"valid"`
+	Issuer          string                     `json:"issuer,omitempty"`
+	Holder          string                     `json:"holder,omitempty"`
+	CredentialID    string                     `json:"credential_id,omitempty"`
+	CredentialTypes []string                   `json:"credential_types,omitempty"`
+	Claims          map[string]any             `json:"claims,omitempty"`
+	IssuedAt        *time.Time                 `json:"issued_at,omitempty"`
+	ExpiresAt       *time.Time                 `json:"expires_at,omitempty"`
+	Checks          VerificationChecksResponse `json:"checks"`
+	Error           string                     `json:"error,omitempty"`
+}
+
+// VerificationChecksResponse contains the result of individual verification checks.
+type VerificationChecksResponse struct {
+	Signature  string `json:"signature"`
+	Expiration string `json:"expiration"`
+	NotBefore  string `json:"not_before"`
+	IssuerDID  string `json:"issuer_did"`
+	HolderDID  string `json:"holder_did"`
+}
+
+// FromVerificationResult converts a domain.VerificationResult to a VerificationResponse.
+func FromVerificationResult(result *domain.VerificationResult) *VerificationResponse {
+	if result == nil {
+		return nil
+	}
+
+	return &VerificationResponse{
+		Valid:           result.Valid,
+		Issuer:          result.Issuer,
+		Holder:          result.Holder,
+		CredentialID:    result.CredentialID,
+		CredentialTypes: result.CredentialTypes,
+		Claims:          result.Claims,
+		IssuedAt:        result.IssuedAt,
+		ExpiresAt:       result.ExpiresAt,
+		Checks: VerificationChecksResponse{
+			Signature:  result.Checks.Signature.String(),
+			Expiration: result.Checks.Expiration.String(),
+			NotBefore:  result.Checks.NotBefore.String(),
+			IssuerDID:  result.Checks.IssuerDID.String(),
+			HolderDID:  result.Checks.HolderDID.String(),
+		},
+		Error: result.Error,
 	}
 }
 

@@ -196,3 +196,22 @@ func (p *ListCredentialsParams) Validate() error {
 
 	return v.Error()
 }
+
+// ============================================================================
+// Verify Credential Request
+// ============================================================================
+
+// VerifyCredentialRequest is the request body for verifying a credential.
+type VerifyCredentialRequest struct {
+	JWT string `json:"jwt"`
+}
+
+// Validate validates the request.
+func (r *VerifyCredentialRequest) Validate() error {
+	v := request.NewValidator()
+
+	v.Required("jwt", r.JWT)
+	v.MinLength("jwt", r.JWT, 10)
+
+	return v.Error()
+}

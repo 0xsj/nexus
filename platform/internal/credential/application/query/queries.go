@@ -13,6 +13,7 @@ const (
 	TypeListCredentials        = "credential.list"
 	TypeGetCredentialsByHolder = "credential.get_by_holder"
 	TypeGetCredentialsByIssuer = "credential.get_by_issuer"
+	TypeVerifyCredential       = "credential.verify"
 )
 
 // ============================================================================
@@ -209,6 +210,27 @@ func (q *GetCredentialsByIssuer) WithOffset(offset int) *GetCredentialsByIssuer 
 }
 
 // ============================================================================
+// Verify Credential Query
+// ============================================================================
+
+// VerifyCredential verifies a JWT-VC.
+type VerifyCredential struct {
+	JWT string `json:"jwt"`
+}
+
+// QueryName returns the query name.
+func (q *VerifyCredential) QueryName() string {
+	return TypeVerifyCredential
+}
+
+// NewVerifyCredential creates a new VerifyCredential query.
+func NewVerifyCredential(jwt string) *VerifyCredential {
+	return &VerifyCredential{
+		JWT: jwt,
+	}
+}
+
+// ============================================================================
 // Interface Compliance
 // ============================================================================
 
@@ -217,4 +239,5 @@ var (
 	_ cqrs.Query = (*ListCredentials)(nil)
 	_ cqrs.Query = (*GetCredentialsByHolder)(nil)
 	_ cqrs.Query = (*GetCredentialsByIssuer)(nil)
+	_ cqrs.Query = (*VerifyCredential)(nil)
 )

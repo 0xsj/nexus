@@ -30,9 +30,6 @@ func NewRouter(commandBus cqrs.CommandBus, queryBus cqrs.QueryBus, logger log.Lo
 func (rt *Router) Routes() chi.Router {
 	r := chi.NewRouter()
 
-	// Module-specific middleware can be added here
-	// r.Use(someCredentialSpecificMiddleware)
-
 	// Credential routes
 	r.Route("/credentials", func(r chi.Router) {
 		// List credentials
@@ -44,10 +41,16 @@ func (rt *Router) Routes() chi.Router {
 		// Request a credential (holder-initiated)
 		r.Post("/request", rt.handler.RequestCredential)
 
+		// Verify a credential (JWT-VC)
+		r.Post("/verify", rt.handler.VerifyCredential)
+
 		// Single credential operations
 		r.Route("/{id}", func(r chi.Router) {
 			// Get credential by ID
 			r.Get("/", rt.handler.GetCredential)
+
+			// Get signed verifiable credential (JWT-VC)
+			r.Get("/vc", rt.handler.GetCredentialVC)
 
 			// Lifecycle operations
 			r.Post("/revoke", rt.handler.RevokeCredential)
