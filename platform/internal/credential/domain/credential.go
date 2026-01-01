@@ -392,6 +392,45 @@ func (c *Credential) applyCredentialExpired(e *CredentialExpired) {
 }
 
 // ============================================================================
+// Reconstruction (for persistence)
+// ============================================================================
+
+// ReconstructCredential rebuilds a Credential from persisted state.
+// This bypasses event sourcing and should only be used by repositories.
+func ReconstructCredential(
+	id string,
+	credentialType string,
+	schemaID string,
+	holderDID string,
+	issuerDID string,
+	status Status,
+	claims map[string]any,
+	signedVC string,
+	issuedAt *time.Time,
+	expiresAt *time.Time,
+	revocationInfo *RevocationInfo,
+	suspensionInfo *SuspensionInfo,
+	version int,
+) *Credential {
+	c := &Credential{
+		holderDID:      holderDID,
+		issuerDID:      issuerDID,
+		credentialType: credentialType,
+		schemaID:       schemaID,
+		status:         status,
+		claims:         claims,
+		signedVC:       signedVC,
+		issuedAt:       issuedAt,
+		expiresAt:      expiresAt,
+		revocationInfo: revocationInfo,
+		suspensionInfo: suspensionInfo,
+	}
+	c.InitAggregate(AggregateType, id)
+	c.SetVersion(version)
+	return c
+}
+
+// ============================================================================
 // Interface Compliance
 // ============================================================================
 

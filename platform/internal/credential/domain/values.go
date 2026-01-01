@@ -86,3 +86,21 @@ type SuspensionInfo struct {
 	SuspendedAt time.Time  `json:"suspended_at"`
 	Until       *time.Time `json:"until,omitempty"`
 }
+
+// ParseCredentialStatus parses a string into a Status.
+func ParseCredentialStatus(s string) Status {
+	switch s {
+	case "pending":
+		return StatusPending
+	case "active":
+		return StatusActive
+	case "suspended":
+		return StatusSuspended
+	case "revoked":
+		return StatusRevoked
+	case "expired":
+		return StatusExpired
+	default:
+		return Status(s)
+	}
+}

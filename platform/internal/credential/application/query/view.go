@@ -10,21 +10,26 @@ import (
 
 // CredentialView is the read model for a credential.
 type CredentialView struct {
-	ID             string         `json:"id"`
-	CredentialType string         `json:"credential_type"`
-	SchemaID       string         `json:"schema_id,omitempty"`
-	HolderDID      string         `json:"holder_did"`
-	IssuerDID      string         `json:"issuer_did"`
-	Status         string         `json:"status"`
-	Claims         map[string]any `json:"claims,omitempty"`
-	SignedVC       string         `json:"signed_vc,omitempty"`
-	IssuedAt       *time.Time     `json:"issued_at,omitempty"`
-	ExpiresAt      *time.Time     `json:"expires_at,omitempty"`
-	RevokedAt      *time.Time     `json:"revoked_at,omitempty"`
-	SuspendedAt    *time.Time     `json:"suspended_at,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	Version        int            `json:"version"`
+	ID               string         `json:"id"`
+	CredentialType   string         `json:"credential_type"`
+	SchemaID         string         `json:"schema_id,omitempty"`
+	HolderDID        string         `json:"holder_did"`
+	IssuerDID        string         `json:"issuer_did"`
+	Status           string         `json:"status"`
+	Claims           map[string]any `json:"claims,omitempty"`
+	SignedVC         string         `json:"signed_vc,omitempty"`
+	IssuedAt         *time.Time     `json:"issued_at,omitempty"`
+	ExpiresAt        *time.Time     `json:"expires_at,omitempty"`
+	RevokedAt        *time.Time     `json:"revoked_at,omitempty"`
+	RevokedBy        string         `json:"revoked_by,omitempty"`
+	RevocationReason string         `json:"revocation_reason,omitempty"`
+	SuspendedAt      *time.Time     `json:"suspended_at,omitempty"`
+	SuspendedBy      string         `json:"suspended_by,omitempty"`
+	SuspensionReason string         `json:"suspension_reason,omitempty"`
+	SuspendedUntil   *time.Time     `json:"suspended_until,omitempty"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	Version          int            `json:"version"`
 }
 
 // HasSignedVC returns true if the credential has a signed VC.
