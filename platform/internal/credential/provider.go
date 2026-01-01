@@ -1,6 +1,8 @@
 package credential
 
 import (
+	"database/sql"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/wire"
 
@@ -8,6 +10,7 @@ import (
 	"github.com/0xsj/nexus/platform/internal/credential/application/query"
 	"github.com/0xsj/nexus/platform/internal/credential/domain"
 	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/persistence/memory"
+	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/persistence/postgres"
 	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/signing"
 	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/verification"
 	httpv1 "github.com/0xsj/nexus/platform/internal/credential/interface/http/v1"
@@ -46,6 +49,10 @@ type ModuleConfig struct {
 	// EnableSigning enables credential signing.
 	// If false, credentials will not have signed VCs.
 	EnableSigning bool
+
+	// Database is the PostgreSQL database connection.
+	// If nil, in-memory storage is used.
+	Database *sql.DB
 }
 
 // DefaultModuleConfig returns default configuration.
@@ -62,7 +69,8 @@ func DefaultModuleConfig() ModuleConfig {
 // Module is the credential module that provides all credential functionality.
 type Module struct {
 	router              *httpv1.Router
-	repository          *memory.Repository
+	writeRepository     domain.CredentialRepository
+	readRepository      query.CredentialReadRepository
 	commandBus          *cqrs.InMemoryCommandBus
 	queryBus            *cqrs.InMemoryQueryBus
 	signingService      domain.SigningService
@@ -78,8 +86,23 @@ func NewModule(logger log.Logger) (*Module, error) {
 
 // NewModuleWithConfig creates a new credential module with custom configuration.
 func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
-	// Create repository (implements both write and read interfaces)
-	repository := memory.NewRepository()
+	// Create repositories based on configuration
+	var writeRepo domain.CredentialRepository
+	var readRepo query.CredentialReadRepository
+
+	if cfg.Database != nil {
+		// Use PostgreSQL
+		pgRepo := postgres.NewRepository(cfg.Database)
+		writeRepo = pgRepo
+		readRepo = pgRepo
+		logger.Info("credential module using PostgreSQL persistence")
+	} else {
+		// Use in-memory
+		memRepo := memory.NewRepository()
+		writeRepo = memRepo
+		readRepo = memRepo
+		logger.Info("credential module using in-memory persistence")
+	}
 
 	// Create CQRS buses
 	commandBus := cqrs.NewCommandBus()
@@ -102,12 +125,12 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	verificationService := verification.NewVerifier()
 
 	// Register command handlers
-	if err := command.RegisterHandlers(commandBus, repository, signingService); err != nil {
+	if err := command.RegisterHandlers(commandBus, writeRepo, signingService); err != nil {
 		return nil, err
 	}
 
 	// Register query handlers
-	if err := query.RegisterHandlers(queryBus, repository, verificationService); err != nil {
+	if err := query.RegisterHandlers(queryBus, readRepo, verificationService); err != nil {
 		return nil, err
 	}
 
@@ -116,7 +139,8 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 
 	return &Module{
 		router:              router,
-		repository:          repository,
+		writeRepository:     writeRepo,
+		readRepository:      readRepo,
 		commandBus:          commandBus,
 		queryBus:            queryBus,
 		signingService:      signingService,
@@ -189,9 +213,14 @@ func (m *Module) QueryBus() cqrs.QueryBus {
 	return m.queryBus
 }
 
-// Repository returns the repository for testing purposes.
-func (m *Module) Repository() *memory.Repository {
-	return m.repository
+// WriteRepository returns the write repository.
+func (m *Module) WriteRepository() domain.CredentialRepository {
+	return m.writeRepository
+}
+
+// ReadRepository returns the read repository.
+func (m *Module) ReadRepository() query.CredentialReadRepository {
+	return m.readRepository
 }
 
 // SigningService returns the signing service.
