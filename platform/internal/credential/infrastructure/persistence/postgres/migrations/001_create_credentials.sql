@@ -1,4 +1,3 @@
--- +migrate Up
 -- ============================================================================
 -- Credentials Table
 -- ============================================================================
@@ -52,28 +51,28 @@ CREATE TABLE IF NOT EXISTS credentials (
 -- ============================================================================
 
 -- Lookup by participant
-CREATE INDEX idx_credentials_holder_did ON credentials(holder_did);
-CREATE INDEX idx_credentials_issuer_did ON credentials(issuer_did);
+CREATE INDEX IF NOT EXISTS idx_credentials_holder_did ON credentials(holder_did);
+CREATE INDEX IF NOT EXISTS idx_credentials_issuer_did ON credentials(issuer_did);
 
 -- Filtering
-CREATE INDEX idx_credentials_status ON credentials(status);
-CREATE INDEX idx_credentials_credential_type ON credentials(credential_type);
+CREATE INDEX IF NOT EXISTS idx_credentials_status ON credentials(status);
+CREATE INDEX IF NOT EXISTS idx_credentials_credential_type ON credentials(credential_type);
 
 -- Sorting / pagination
-CREATE INDEX idx_credentials_created_at ON credentials(created_at DESC);
-CREATE INDEX idx_credentials_issued_at ON credentials(issued_at DESC);
+CREATE INDEX IF NOT EXISTS idx_credentials_created_at ON credentials(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_credentials_issued_at ON credentials(issued_at DESC);
 
 -- Composite index for common query pattern: holder + status
-CREATE INDEX idx_credentials_holder_status ON credentials(holder_did, status);
+CREATE INDEX IF NOT EXISTS idx_credentials_holder_status ON credentials(holder_did, status);
 
 -- Composite index for common query pattern: issuer + status
-CREATE INDEX idx_credentials_issuer_status ON credentials(issuer_did, status);
+CREATE INDEX IF NOT EXISTS idx_credentials_issuer_status ON credentials(issuer_did, status);
 
 -- ============================================================================
 -- Updated At Trigger
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+CREATE OR REPLACE FUNCTION update_credentials_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
@@ -81,12 +80,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS credentials_updated_at ON credentials;
 CREATE TRIGGER credentials_updated_at
     BEFORE UPDATE ON credentials
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- +migrate Down
-DROP TRIGGER IF EXISTS credentials_updated_at ON credentials;
-DROP FUNCTION IF EXISTS update_updated_at_column();
-DROP TABLE IF EXISTS credentials;
+    EXECUTE FUNCTION update_credentials_updated_at();
