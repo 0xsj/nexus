@@ -1,7 +1,7 @@
 # ============================================================================
 # Builder stage
 # ============================================================================
-FROM golang:1.25-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /build
 
@@ -41,5 +41,10 @@ USER nonroot:nonroot
 
 # Expose port
 EXPOSE 8090
+
+# Environment variables (can be overridden at runtime)
+ENV PORT=8090
+ENV ENV=production
+ENV LOG_LEVEL=info
 
 ENTRYPOINT ["/app/api"]
