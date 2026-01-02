@@ -512,3 +512,11 @@ func IsRetryable(err error) bool {
 	}
 	return false
 }
+
+// HasCode checks if an error has a specific code.
+func HasCode(err error, code Code) bool {
+	if e := AsError(err); e != nil {
+		return e.Code == code
+	}
+	return false
+}
