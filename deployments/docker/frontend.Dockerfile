@@ -1,7 +1,7 @@
 # ============================================================================
 # Dependencies stage
 # ============================================================================
-FROM node:22-alpine AS deps
+FROM node:25-alpine AS deps
 WORKDIR /app
 
 # Copy package files
@@ -13,7 +13,7 @@ RUN npm ci
 # ============================================================================
 # Builder stage
 # ============================================================================
-FROM node:22-alpine AS builder
+FROM node:25-alpine AS builder
 WORKDIR /app
 
 # Build-time arguments for environment variables
@@ -35,7 +35,7 @@ RUN npm run build
 # ============================================================================
 # Runtime stage
 # ============================================================================
-FROM node:22-alpine AS runner
+FROM node:25-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
