@@ -1,0 +1,130 @@
+version: 2
+updates:
+  # ============================================================================
+  # Go (Platform)
+  # ============================================================================
+  - package-ecosystem: "gomod"
+    directory: "/platform"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps(go)"
+    labels:
+      - "dependencies"
+      - "go"
+    reviewers:
+      - "0xsj"
+    groups:
+      # Group minor/patch updates together
+      go-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ============================================================================
+  # npm (Frontend)
+  # ============================================================================
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps(npm)"
+    labels:
+      - "dependencies"
+      - "javascript"
+    reviewers:
+      - "0xsj"
+    groups:
+      # Group React/Next.js updates
+      react-next:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "next"
+          - "@next/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group TypeScript and linting
+      typescript-lint:
+        patterns:
+          - "typescript"
+          - "eslint"
+          - "eslint-*"
+          - "@typescript-eslint/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group all other minor/patch
+      npm-minor:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "react"
+          - "react-dom"
+          - "next"
+          - "@next/*"
+          - "typescript"
+          - "eslint"
+          - "eslint-*"
+          - "@typescript-eslint/*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ============================================================================
+  # Docker
+  # ============================================================================
+  - package-ecosystem: "docker"
+    directory: "/deployments/docker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(docker)"
+    labels:
+      - "dependencies"
+      - "docker"
+    reviewers:
+      - "0xsj"
+
+  # ============================================================================
+  # GitHub Actions
+  # ============================================================================
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(actions)"
+    labels:
+      - "dependencies"
+      - "ci"
+    reviewers:
+      - "0xsj"
+    groups:
+      # Group all action updates
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
