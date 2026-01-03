@@ -29,6 +29,15 @@ const (
 	CodeAPIKeyNotFound errors.Code = "API_KEY_NOT_FOUND"
 	CodeAPIKeyExpired  errors.Code = "API_KEY_EXPIRED"
 	CodeAPIKeyRevoked  errors.Code = "API_KEY_REVOKED"
+
+	CodeChallengeNotFound errors.Code = "CHALLENGE_NOT_FOUND"
+	CodeChallengeExpired  errors.Code = "CHALLENGE_EXPIRED"
+	CodeChallengeInvalid  errors.Code = "CHALLENGE_INVALID"
+	CodeChallengeUsed     errors.Code = "CHALLENGE_USED"
+
+	CodeWalletNotFound      errors.Code = "WALLET_NOT_FOUND"
+	CodeWalletAlreadyLinked errors.Code = "WALLET_ALREADY_LINKED"
+	CodeInvalidSignature    errors.Code = "INVALID_SIGNATURE"
 )
 
 // ============================================================================
@@ -130,6 +139,38 @@ func ErrTokenExpired(operation string) *errors.Error {
 }
 
 // ============================================================================
+// Challenge Errors
+// ============================================================================
+
+// ErrChallengeNotFound creates a challenge not found error.
+func ErrChallengeNotFound(operation string, nonce string) *errors.Error {
+	return errors.NotFound(operation, "challenge").
+		WithCode(CodeChallengeNotFound).
+		WithMeta("nonce", nonce)
+}
+
+// ErrChallengeExpired creates a challenge expired error.
+func ErrChallengeExpired(operation string, nonce string) *errors.Error {
+	return errors.Unauthorized(operation, "challenge has expired").
+		WithCode(CodeChallengeExpired).
+		WithMeta("nonce", nonce)
+}
+
+// ErrChallengeInvalid creates a challenge invalid error.
+func ErrChallengeInvalid(operation string, nonce string) *errors.Error {
+	return errors.Unauthorized(operation, "invalid challenge").
+		WithCode(CodeChallengeInvalid).
+		WithMeta("nonce", nonce)
+}
+
+// ErrChallengeUsed creates a challenge already used error.
+func ErrChallengeUsed(operation string, nonce string) *errors.Error {
+	return errors.Unauthorized(operation, "challenge has already been used").
+		WithCode(CodeChallengeUsed).
+		WithMeta("nonce", nonce)
+}
+
+// ============================================================================
 // Connection Errors
 // ============================================================================
 
@@ -183,6 +224,30 @@ func ErrAPIKeyRevoked(operation string, keyID string) *errors.Error {
 }
 
 // ============================================================================
+// Wallet Errors
+// ============================================================================
+
+// ErrWalletNotFound creates a wallet not found error.
+func ErrWalletNotFound(operation string, address string) *errors.Error {
+	return errors.NotFound(operation, "wallet: "+address).
+		WithCode(CodeWalletNotFound).
+		WithMeta("address", address)
+}
+
+// ErrWalletAlreadyLinked creates a wallet already linked error.
+func ErrWalletAlreadyLinked(operation string, address string) *errors.Error {
+	return errors.Conflict(operation, "wallet is already linked to an account").
+		WithCode(CodeWalletAlreadyLinked).
+		WithMeta("address", address)
+}
+
+// ErrInvalidSignature creates an invalid signature error.
+func ErrInvalidSignature(operation string) *errors.Error {
+	return errors.Unauthorized(operation, "invalid signature").
+		WithCode(CodeInvalidSignature)
+}
+
+// ============================================================================
 // Error Checkers
 // ============================================================================
 
@@ -214,4 +279,34 @@ func IsTokenExpired(err error) bool {
 // IsTokenInvalid checks if error is token invalid.
 func IsTokenInvalid(err error) bool {
 	return errors.GetCode(err) == CodeTokenInvalid
+}
+
+// IsChallengeNotFound checks if error is challenge not found.
+func IsChallengeNotFound(err error) bool {
+	return errors.GetCode(err) == CodeChallengeNotFound
+}
+
+// IsChallengeExpired checks if error is challenge expired.
+func IsChallengeExpired(err error) bool {
+	return errors.GetCode(err) == CodeChallengeExpired
+}
+
+// IsChallengeInvalid checks if error is challenge invalid.
+func IsChallengeInvalid(err error) bool {
+	return errors.GetCode(err) == CodeChallengeInvalid
+}
+
+// IsChallengeUsed checks if error is challenge already used.
+func IsChallengeUsed(err error) bool {
+	return errors.GetCode(err) == CodeChallengeUsed
+}
+
+// IsWalletAlreadyLinked checks if error is wallet already linked.
+func IsWalletAlreadyLinked(err error) bool {
+	return errors.GetCode(err) == CodeWalletAlreadyLinked
+}
+
+// IsInvalidSignature checks if error is invalid signature.
+func IsInvalidSignature(err error) bool {
+	return errors.GetCode(err) == CodeInvalidSignature
 }

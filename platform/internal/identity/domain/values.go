@@ -770,10 +770,13 @@ type Challenge struct {
 	Message   string
 	Domain    string
 	URI       string
+	Statement string
 	IssuedAt  time.Time
 	ExpiresAt time.Time
 	Chain     Chain
 	Address   string
+	Used      bool
+	UsedAt    *time.Time
 }
 
 // NewChallenge creates a new authentication challenge.
@@ -787,6 +790,8 @@ func NewChallenge(nonce, domain, uri, address string, chain Chain, ttl time.Dura
 		Chain:     chain,
 		IssuedAt:  now,
 		ExpiresAt: now.Add(ttl),
+		Used:      false,
+		UsedAt:    nil,
 	}
 }
 
@@ -795,17 +800,29 @@ func (c Challenge) IsExpired() bool {
 	return time.Now().After(c.ExpiresAt)
 }
 
-// IsValid returns true if the challenge is valid (not expired).
+// IsValid returns true if the challenge is valid (not expired and not used).
 func (c Challenge) IsValid() bool {
-	return !c.IsExpired()
+	return !c.IsExpired() && !c.Used
+}
+
+// MarkUsed marks the challenge as used.
+func (c *Challenge) MarkUsed() {
+	now := time.Now()
+	c.Used = true
+	c.UsedAt = &now
 }
 
 // SIWE returns the Sign-In With Ethereum (EIP-4361) message format.
 func (c Challenge) SIWE() string {
+	statement := c.Statement
+	if statement == "" {
+		statement = "Sign in to Proof"
+	}
+
 	return fmt.Sprintf(`%s wants you to sign in with your Ethereum account:
 %s
 
-Sign in to Proof
+%s
 
 URI: %s
 Version: 1
@@ -815,6 +832,7 @@ Issued At: %s
 Expiration Time: %s`,
 		c.Domain,
 		c.Address,
+		statement,
 		c.URI,
 		c.Chain.ChainID(),
 		c.Nonce,
