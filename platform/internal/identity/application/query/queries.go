@@ -2,6 +2,29 @@ package query
 
 import (
 	"github.com/0xsj/nexus/platform/internal/identity/domain"
+	"github.com/0xsj/nexus/platform/pkg/cqrs"
+)
+
+// ============================================================================
+// Query Types
+// ============================================================================
+
+const (
+	TypeGetUser          = "identity.get_user"
+	TypeGetUserByDID     = "identity.get_user_by_did"
+	TypeGetUserByWallet  = "identity.get_user_by_wallet"
+	TypeGetUserByEmail   = "identity.get_user_by_email"
+	TypeListUsers        = "identity.list_users"
+	TypeGetUserStats     = "identity.get_user_stats"
+	TypeGetPublicProfile = "identity.get_public_profile"
+	TypeCheckUserExists  = "identity.check_user_exists"
+	TypeGetSession       = "identity.get_session"
+	TypeListUserSessions = "identity.list_user_sessions"
+	TypeValidateSession  = "identity.validate_session"
+	TypeGetAPIKey        = "identity.get_api_key"
+	TypeListUserAPIKeys  = "identity.list_user_api_keys"
+	TypeValidateAPIKey   = "identity.validate_api_key"
+	TypeValidateToken    = "identity.validate_token"
 )
 
 // ============================================================================
@@ -10,42 +33,130 @@ import (
 
 // GetUser retrieves a user by ID.
 type GetUser struct {
-	UserID string
+	UserID string `json:"user_id"`
 }
 
-// GetUserByDID retrieves a user by their primary DID.
+// QueryName returns the query name.
+func (q *GetUser) QueryName() string {
+	return TypeGetUser
+}
+
+// GetUserByDID retrieves a user by DID.
 type GetUserByDID struct {
-	DID string
+	DID string `json:"did"`
 }
 
-// GetUserByWallet retrieves a user by a linked wallet address.
+// QueryName returns the query name.
+func (q *GetUserByDID) QueryName() string {
+	return TypeGetUserByDID
+}
+
+// GetUserByWallet retrieves a user by wallet address.
 type GetUserByWallet struct {
-	Address string
-	Chain   domain.Chain
+	Address string       `json:"address"`
+	Chain   domain.Chain `json:"chain"`
 }
 
-// GetUserByEmail retrieves a user by a linked email.
+// QueryName returns the query name.
+func (q *GetUserByWallet) QueryName() string {
+	return TypeGetUserByWallet
+}
+
+// GetUserByEmail retrieves a user by email.
 type GetUserByEmail struct {
-	Email string
+	Email string `json:"email"`
+}
+
+// QueryName returns the query name.
+func (q *GetUserByEmail) QueryName() string {
+	return TypeGetUserByEmail
 }
 
 // ListUsers retrieves a paginated list of users.
 type ListUsers struct {
-	Limit     int
-	Offset    int
-	Status    *domain.UserStatus
-	SortBy    string // "created_at", "updated_at", "last_login_at"
-	SortOrder string // "asc", "desc"
+	Status    *domain.UserStatus `json:"status,omitempty"`
+	Limit     int                `json:"limit"`
+	Offset    int                `json:"offset"`
+	SortBy    string             `json:"sort_by,omitempty"`
+	SortOrder string             `json:"sort_order,omitempty"`
+}
+
+// QueryName returns the query name.
+func (q *ListUsers) QueryName() string {
+	return TypeListUsers
+}
+
+// NewListUsers creates a new ListUsers query with defaults.
+func NewListUsers() *ListUsers {
+	return &ListUsers{
+		Limit:     20,
+		Offset:    0,
+		SortBy:    "created_at",
+		SortOrder: "desc",
+	}
+}
+
+// WithStatus filters by status.
+func (q *ListUsers) WithStatus(status domain.UserStatus) *ListUsers {
+	q.Status = &status
+	return q
+}
+
+// WithLimit sets the limit.
+func (q *ListUsers) WithLimit(limit int) *ListUsers {
+	q.Limit = limit
+	return q
+}
+
+// WithOffset sets the offset.
+func (q *ListUsers) WithOffset(offset int) *ListUsers {
+	q.Offset = offset
+	return q
+}
+
+// WithSort sets the sort field and order.
+func (q *ListUsers) WithSort(sortBy, sortOrder string) *ListUsers {
+	q.SortBy = sortBy
+	q.SortOrder = sortOrder
+	return q
 }
 
 // GetUserStats retrieves statistics for a user.
 type GetUserStats struct {
-	UserID string
+	UserID string `json:"user_id"`
 }
 
-// GetPublicProfile retrieves the public profile for a user.
+// QueryName returns the query name.
+func (q *GetUserStats) QueryName() string {
+	return TypeGetUserStats
+}
+
+// GetPublicProfile retrieves the public profile for a DID.
 type GetPublicProfile struct {
-	DID string
+	DID string `json:"did"`
+}
+
+// QueryName returns the query name.
+func (q *GetPublicProfile) QueryName() string {
+	return TypeGetPublicProfile
+}
+
+// CheckUserExists checks if a user exists by various identifiers.
+type CheckUserExists struct {
+	Email  *string           `json:"email,omitempty"`
+	DID    *string           `json:"did,omitempty"`
+	Wallet *WalletIdentifier `json:"wallet,omitempty"`
+}
+
+// QueryName returns the query name.
+func (q *CheckUserExists) QueryName() string {
+	return TypeCheckUserExists
+}
+
+// WalletIdentifier identifies a wallet.
+type WalletIdentifier struct {
+	Address string       `json:"address"`
+	Chain   domain.Chain `json:"chain"`
 }
 
 // ============================================================================
@@ -54,59 +165,72 @@ type GetPublicProfile struct {
 
 // GetSession retrieves a session by ID.
 type GetSession struct {
-	UserID    string
-	SessionID string
+	UserID    string `json:"user_id"`
+	SessionID string `json:"session_id"`
 }
 
-// ListUserSessions retrieves all sessions for a user.
+// QueryName returns the query name.
+func (q *GetSession) QueryName() string {
+	return TypeGetSession
+}
+
+// ListUserSessions retrieves sessions for a user.
 type ListUserSessions struct {
-	UserID         string
-	CurrentSession string // To mark which is current
-	ActiveOnly     bool
-	Limit          int
-	Offset         int
+	UserID         string `json:"user_id"`
+	CurrentSession string `json:"current_session,omitempty"`
+	ActiveOnly     bool   `json:"active_only"`
+	Limit          int    `json:"limit"`
+	Offset         int    `json:"offset"`
 }
 
-// ValidateSession validates a session is active and not expired.
+// QueryName returns the query name.
+func (q *ListUserSessions) QueryName() string {
+	return TypeListUserSessions
+}
+
+// NewListUserSessions creates a new ListUserSessions query with defaults.
+func NewListUserSessions(userID string) *ListUserSessions {
+	return &ListUserSessions{
+		UserID:     userID,
+		ActiveOnly: false,
+		Limit:      20,
+		Offset:     0,
+	}
+}
+
+// WithCurrentSession sets the current session for comparison.
+func (q *ListUserSessions) WithCurrentSession(sessionID string) *ListUserSessions {
+	q.CurrentSession = sessionID
+	return q
+}
+
+// WithActiveOnly filters to active sessions only.
+func (q *ListUserSessions) WithActiveOnly(activeOnly bool) *ListUserSessions {
+	q.ActiveOnly = activeOnly
+	return q
+}
+
+// WithLimit sets the limit.
+func (q *ListUserSessions) WithLimit(limit int) *ListUserSessions {
+	q.Limit = limit
+	return q
+}
+
+// WithOffset sets the offset.
+func (q *ListUserSessions) WithOffset(offset int) *ListUserSessions {
+	q.Offset = offset
+	return q
+}
+
+// ValidateSession validates a session.
 type ValidateSession struct {
-	SessionID string
-	TokenHash string
+	SessionID string `json:"session_id"`
+	TokenHash string `json:"token_hash"`
 }
 
-// CountUserSessions counts sessions for a user.
-type CountUserSessions struct {
-	UserID     string
-	ActiveOnly bool
-}
-
-// ============================================================================
-// Connection Queries
-// ============================================================================
-
-// GetConnection retrieves a connection by ID.
-type GetConnection struct {
-	UserID       string
-	ConnectionID string
-}
-
-// GetConnectionByProvider retrieves a connection by provider.
-type GetConnectionByProvider struct {
-	UserID   string
-	Provider domain.OAuthProvider
-}
-
-// ListUserConnections retrieves all connections for a user.
-type ListUserConnections struct {
-	UserID     string
-	ActiveOnly bool
-	Limit      int
-	Offset     int
-}
-
-// CheckConnectionExists checks if a user has a connection to a provider.
-type CheckConnectionExists struct {
-	UserID   string
-	Provider domain.OAuthProvider
+// QueryName returns the query name.
+func (q *ValidateSession) QueryName() string {
+	return TypeValidateSession
 }
 
 // ============================================================================
@@ -115,127 +239,99 @@ type CheckConnectionExists struct {
 
 // GetAPIKey retrieves an API key by ID.
 type GetAPIKey struct {
-	UserID string
-	KeyID  string
+	UserID string `json:"user_id"`
+	KeyID  string `json:"key_id"`
 }
 
-// ListUserAPIKeys retrieves all API keys for a user.
+// QueryName returns the query name.
+func (q *GetAPIKey) QueryName() string {
+	return TypeGetAPIKey
+}
+
+// ListUserAPIKeys retrieves API keys for a user.
 type ListUserAPIKeys struct {
-	UserID     string
-	ActiveOnly bool
-	Limit      int
-	Offset     int
+	UserID     string `json:"user_id"`
+	ActiveOnly bool   `json:"active_only"`
+	Limit      int    `json:"limit"`
+	Offset     int    `json:"offset"`
+}
+
+// QueryName returns the query name.
+func (q *ListUserAPIKeys) QueryName() string {
+	return TypeListUserAPIKeys
+}
+
+// NewListUserAPIKeys creates a new ListUserAPIKeys query with defaults.
+func NewListUserAPIKeys(userID string) *ListUserAPIKeys {
+	return &ListUserAPIKeys{
+		UserID:     userID,
+		ActiveOnly: false,
+		Limit:      20,
+		Offset:     0,
+	}
+}
+
+// WithActiveOnly filters to active keys only.
+func (q *ListUserAPIKeys) WithActiveOnly(activeOnly bool) *ListUserAPIKeys {
+	q.ActiveOnly = activeOnly
+	return q
+}
+
+// WithLimit sets the limit.
+func (q *ListUserAPIKeys) WithLimit(limit int) *ListUserAPIKeys {
+	q.Limit = limit
+	return q
+}
+
+// WithOffset sets the offset.
+func (q *ListUserAPIKeys) WithOffset(offset int) *ListUserAPIKeys {
+	q.Offset = offset
+	return q
 }
 
 // ValidateAPIKey validates an API key.
 type ValidateAPIKey struct {
-	RawKey string
+	RawKey string `json:"raw_key"`
 }
 
-// CountUserAPIKeys counts API keys for a user.
-type CountUserAPIKeys struct {
-	UserID     string
-	ActiveOnly bool
+// QueryName returns the query name.
+func (q *ValidateAPIKey) QueryName() string {
+	return TypeValidateAPIKey
 }
 
 // ============================================================================
 // Token Queries
 // ============================================================================
 
-// ValidateAccessToken validates an access token.
-type ValidateAccessToken struct {
-	Token string
+// ValidateToken validates an access or refresh token.
+type ValidateToken struct {
+	Token     string           `json:"token"`
+	TokenType domain.TokenType `json:"token_type"`
 }
 
-// ValidateRefreshToken validates a refresh token.
-type ValidateRefreshToken struct {
-	Token string
-}
-
-// ============================================================================
-// Search Queries
-// ============================================================================
-
-// SearchUsers searches for users by various criteria.
-type SearchUsers struct {
-	Query     string // Search in DID, email, wallet address
-	Limit     int
-	Offset    int
-	SortBy    string
-	SortOrder string
+// QueryName returns the query name.
+func (q *ValidateToken) QueryName() string {
+	return TypeValidateToken
 }
 
 // ============================================================================
-// Existence Queries
+// Interface Compliance
 // ============================================================================
 
-// CheckUserExists checks if a user exists by various identifiers.
-type CheckUserExists struct {
-	UserID *string
-	DID    *string
-	Email  *string
-	Wallet *WalletIdentifier
-}
-
-// WalletIdentifier identifies a wallet.
-type WalletIdentifier struct {
-	Address string
-	Chain   domain.Chain
-}
-
-// ============================================================================
-// Query Options
-// ============================================================================
-
-// ListOptions contains common list query options.
-type ListOptions struct {
-	Limit     int
-	Offset    int
-	SortBy    string
-	SortOrder string
-}
-
-// DefaultListOptions returns default list options.
-func DefaultListOptions() ListOptions {
-	return ListOptions{
-		Limit:     20,
-		Offset:    0,
-		SortBy:    "created_at",
-		SortOrder: "desc",
-	}
-}
-
-// WithLimit sets the limit.
-func (o ListOptions) WithLimit(limit int) ListOptions {
-	o.Limit = limit
-	return o
-}
-
-// WithOffset sets the offset.
-func (o ListOptions) WithOffset(offset int) ListOptions {
-	o.Offset = offset
-	return o
-}
-
-// WithSort sets the sort options.
-func (o ListOptions) WithSort(sortBy, sortOrder string) ListOptions {
-	o.SortBy = sortBy
-	o.SortOrder = sortOrder
-	return o
-}
-
-// Validate validates and normalizes list options.
-func (o *ListOptions) Validate() {
-	if o.Limit <= 0 {
-		o.Limit = 20
-	}
-	if o.Limit > 100 {
-		o.Limit = 100
-	}
-	if o.Offset < 0 {
-		o.Offset = 0
-	}
-	if o.SortOrder != "asc" && o.SortOrder != "desc" {
-		o.SortOrder = "desc"
-	}
-}
+var (
+	_ cqrs.Query = (*GetUser)(nil)
+	_ cqrs.Query = (*GetUserByDID)(nil)
+	_ cqrs.Query = (*GetUserByWallet)(nil)
+	_ cqrs.Query = (*GetUserByEmail)(nil)
+	_ cqrs.Query = (*ListUsers)(nil)
+	_ cqrs.Query = (*GetUserStats)(nil)
+	_ cqrs.Query = (*GetPublicProfile)(nil)
+	_ cqrs.Query = (*CheckUserExists)(nil)
+	_ cqrs.Query = (*GetSession)(nil)
+	_ cqrs.Query = (*ListUserSessions)(nil)
+	_ cqrs.Query = (*ValidateSession)(nil)
+	_ cqrs.Query = (*GetAPIKey)(nil)
+	_ cqrs.Query = (*ListUserAPIKeys)(nil)
+	_ cqrs.Query = (*ValidateAPIKey)(nil)
+	_ cqrs.Query = (*ValidateToken)(nil)
+)

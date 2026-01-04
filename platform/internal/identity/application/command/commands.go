@@ -4,233 +4,289 @@ import (
 	"time"
 
 	"github.com/0xsj/nexus/platform/internal/identity/domain"
+	"github.com/0xsj/nexus/platform/pkg/cqrs"
 )
 
 // ============================================================================
-// Registration Commands
+// Command Types
 // ============================================================================
 
-// RegisterWithWallet creates a new user from a wallet signature.
-type RegisterWithWallet struct {
-	Address   string
-	Chain     domain.Chain
-	Signature string
-	Nonce     string
-	Message   string
-	UserAgent string
-	IPAddress string
-}
-
-// RegisterWithOAuth creates a new user from OAuth authentication.
-type RegisterWithOAuth struct {
-	Provider    domain.OAuthProvider
-	Code        string
-	State       string
-	RedirectURI string
-	UserAgent   string
-	IPAddress   string
-}
+const (
+	TypeRequestChallenge       = "identity.request_challenge"
+	TypeRegisterWithWallet     = "identity.register_with_wallet"
+	TypeAuthenticateWithWallet = "identity.authenticate_with_wallet"
+	TypeRefreshToken           = "identity.refresh_token"
+	TypeRevokeSession          = "identity.revoke_session"
+	TypeRevokeAllSessions      = "identity.revoke_all_sessions"
+	TypeCreateAPIKey           = "identity.create_api_key"
+	TypeRevokeAPIKey           = "identity.revoke_api_key"
+	TypeLinkWallet             = "identity.link_wallet"
+	TypeUnlinkWallet           = "identity.unlink_wallet"
+)
 
 // ============================================================================
-// Authentication Commands
+// Request Challenge Command
 // ============================================================================
 
-// RequestChallenge requests a new authentication challenge.
+// RequestChallenge generates a SIWE challenge for wallet authentication.
 type RequestChallenge struct {
-	Address string
-	Chain   domain.Chain
-	Domain  string
-	URI     string
+	Address string       `json:"address"`
+	Chain   domain.Chain `json:"chain"`
+	Domain  string       `json:"domain"`
+	URI     string       `json:"uri"`
 }
 
-// AuthenticateWithWallet authenticates a user via wallet signature.
+// CommandName returns the command name.
+func (c *RequestChallenge) CommandName() string {
+	return TypeRequestChallenge
+}
+
+// RequestChallengeResult is the result of a challenge request.
+type RequestChallengeResult struct {
+	Nonce     string    `json:"nonce"`
+	Message   string    `json:"message"`
+	Domain    string    `json:"domain"`
+	URI       string    `json:"uri"`
+	IssuedAt  time.Time `json:"issued_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// ============================================================================
+// Register With Wallet Command
+// ============================================================================
+
+// RegisterWithWallet registers a new user with a wallet signature.
+type RegisterWithWallet struct {
+	Address   string       `json:"address"`
+	Chain     domain.Chain `json:"chain"`
+	Signature string       `json:"signature"`
+	Message   string       `json:"message"`
+	Nonce     string       `json:"nonce"`
+	UserAgent string       `json:"user_agent"`
+	IPAddress string       `json:"ip_address"`
+}
+
+// CommandName returns the command name.
+func (c *RegisterWithWallet) CommandName() string {
+	return TypeRegisterWithWallet
+}
+
+// AuthResult is the result of authentication commands.
+type AuthResult struct {
+	UserID       string    `json:"user_id"`
+	DID          string    `json:"did"`
+	SessionID    string    `json:"session_id"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+	TokenType    string    `json:"token_type"`
+	ExpiresIn    int64     `json:"expires_in"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
+// ============================================================================
+// Authenticate With Wallet Command
+// ============================================================================
+
+// AuthenticateWithWallet authenticates an existing user with a wallet signature.
 type AuthenticateWithWallet struct {
-	Address   string
-	Chain     domain.Chain
-	Signature string
-	Nonce     string
-	Message   string
-	UserAgent string
-	IPAddress string
+	Address   string       `json:"address"`
+	Chain     domain.Chain `json:"chain"`
+	Signature string       `json:"signature"`
+	Message   string       `json:"message"`
+	Nonce     string       `json:"nonce"`
+	UserAgent string       `json:"user_agent"`
+	IPAddress string       `json:"ip_address"`
 }
 
-// AuthenticateWithOAuth authenticates a user via OAuth.
-type AuthenticateWithOAuth struct {
-	Provider    domain.OAuthProvider
-	Code        string
-	State       string
-	RedirectURI string
-	UserAgent   string
-	IPAddress   string
+// CommandName returns the command name.
+func (c *AuthenticateWithWallet) CommandName() string {
+	return TypeAuthenticateWithWallet
 }
 
-// AuthenticateWithAPIKey authenticates a request via API key.
-type AuthenticateWithAPIKey struct {
-	RawKey    string
-	IPAddress string
-	UserAgent string
-}
+// ============================================================================
+// Refresh Token Command
+// ============================================================================
 
-// RefreshToken refreshes an access token using a refresh token.
+// RefreshToken refreshes an access token.
 type RefreshToken struct {
-	RefreshToken string
-	UserAgent    string
-	IPAddress    string
+	RefreshToken string `json:"refresh_token"`
+	UserAgent    string `json:"user_agent"`
+	IPAddress    string `json:"ip_address"`
+}
+
+// CommandName returns the command name.
+func (c *RefreshToken) CommandName() string {
+	return TypeRefreshToken
+}
+
+// RefreshTokenResult is the result of a token refresh.
+type RefreshTokenResult struct {
+	AccessToken string    `json:"access_token"`
+	TokenType   string    `json:"token_type"`
+	ExpiresIn   int64     `json:"expires_in"`
+	ExpiresAt   time.Time `json:"expires_at"`
 }
 
 // ============================================================================
-// Session Commands
+// Revoke Session Command
 // ============================================================================
 
-// RevokeSession revokes a single session.
+// RevokeSession revokes a specific session.
 type RevokeSession struct {
-	UserID    string
-	SessionID string
-	Reason    string
+	UserID    string `json:"user_id"`
+	SessionID string `json:"session_id"`
+	Reason    string `json:"reason"`
 }
+
+// CommandName returns the command name.
+func (c *RevokeSession) CommandName() string {
+	return TypeRevokeSession
+}
+
+// RevokeSessionResult is the result of session revocation.
+type RevokeSessionResult struct {
+	SessionID string `json:"session_id"`
+	Revoked   bool   `json:"revoked"`
+}
+
+// ============================================================================
+// Revoke All Sessions Command
+// ============================================================================
 
 // RevokeAllSessions revokes all sessions for a user.
 type RevokeAllSessions struct {
-	UserID         string
-	ExceptCurrent  bool
-	CurrentSession string
-	Reason         string
+	UserID         string `json:"user_id"`
+	ExceptCurrent  bool   `json:"except_current"`
+	CurrentSession string `json:"current_session"`
+	Reason         string `json:"reason"`
+}
+
+// CommandName returns the command name.
+func (c *RevokeAllSessions) CommandName() string {
+	return TypeRevokeAllSessions
+}
+
+// RevokeAllSessionsResult is the result of revoking all sessions.
+type RevokeAllSessionsResult struct {
+	RevokedCount int      `json:"revoked_count"`
+	SessionIDs   []string `json:"session_ids"`
 }
 
 // ============================================================================
-// Wallet Commands
+// Create API Key Command
 // ============================================================================
 
-// LinkWallet links a new wallet to an existing user.
-type LinkWallet struct {
-	UserID    string
-	Address   string
-	Chain     domain.Chain
-	Signature string
-	Nonce     string
-	Message   string
-}
-
-// UnlinkWallet removes a wallet from a user.
-type UnlinkWallet struct {
-	UserID  string
-	Address string
-	Chain   domain.Chain
-}
-
-// ============================================================================
-// Email Commands
-// ============================================================================
-
-// LinkEmail links an email address to a user.
-type LinkEmail struct {
-	UserID string
-	Email  string
-}
-
-// VerifyEmail verifies a linked email address.
-type VerifyEmail struct {
-	Token string
-}
-
-// ResendEmailVerification resends the email verification.
-type ResendEmailVerification struct {
-	UserID string
-	Email  string
-}
-
-// ============================================================================
-// OAuth Connection Commands
-// ============================================================================
-
-// InitiateOAuthLink starts the OAuth linking flow.
-type InitiateOAuthLink struct {
-	UserID   string
-	Provider domain.OAuthProvider
-	Scopes   []string
-}
-
-// CompleteOAuthLink completes the OAuth linking flow.
-type CompleteOAuthLink struct {
-	UserID      string
-	Provider    domain.OAuthProvider
-	Code        string
-	State       string
-	RedirectURI string
-}
-
-// UnlinkOAuth removes an OAuth connection.
-type UnlinkOAuth struct {
-	UserID   string
-	Provider domain.OAuthProvider
-}
-
-// SyncConnection refreshes OAuth connection profile data.
-type SyncConnection struct {
-	UserID       string
-	ConnectionID string
-}
-
-// RefreshOAuthTokens refreshes OAuth tokens for a connection.
-type RefreshOAuthTokens struct {
-	UserID       string
-	ConnectionID string
-}
-
-// ============================================================================
-// API Key Commands
-// ============================================================================
-
-// CreateAPIKey creates a new API key.
+// CreateAPIKey creates a new API key for a user.
 type CreateAPIKey struct {
-	UserID      string
-	Name        string
-	Scopes      []domain.APIKeyScope
-	ExpiresIn   time.Duration // 0 = no expiration
-	Description string
+	UserID      string              `json:"user_id"`
+	Name        string              `json:"name"`
+	Scopes      domain.APIKeyScopes `json:"scopes"`
+	ExpiresIn   time.Duration       `json:"expires_in"`
+	Description string              `json:"description"`
 }
+
+// CommandName returns the command name.
+func (c *CreateAPIKey) CommandName() string {
+	return TypeCreateAPIKey
+}
+
+// CreateAPIKeyResult is the result of API key creation.
+type CreateAPIKeyResult struct {
+	KeyID     string     `json:"key_id"`
+	Name      string     `json:"name"`
+	RawKey    string     `json:"raw_key"` // Only returned once!
+	Prefix    string     `json:"prefix"`
+	Scopes    []string   `json:"scopes"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// ============================================================================
+// Revoke API Key Command
+// ============================================================================
 
 // RevokeAPIKey revokes an API key.
 type RevokeAPIKey struct {
-	UserID string
-	KeyID  string
-	Reason string
+	UserID string `json:"user_id"`
+	KeyID  string `json:"key_id"`
+	Reason string `json:"reason"`
 }
 
-// UpdateAPIKey updates an API key's metadata.
-type UpdateAPIKey struct {
-	UserID      string
-	KeyID       string
-	Name        *string
-	Description *string
+// CommandName returns the command name.
+func (c *RevokeAPIKey) CommandName() string {
+	return TypeRevokeAPIKey
+}
+
+// RevokeAPIKeyResult is the result of API key revocation.
+type RevokeAPIKeyResult struct {
+	KeyID     string    `json:"key_id"`
+	Revoked   bool      `json:"revoked"`
+	RevokedAt time.Time `json:"revoked_at"`
 }
 
 // ============================================================================
-// User Management Commands
+// Link Wallet Command
 // ============================================================================
 
-// SuspendUser suspends a user account.
-type SuspendUser struct {
-	UserID      string
-	Reason      string
-	SuspendedBy string
+// LinkWallet links a wallet to an existing user.
+type LinkWallet struct {
+	UserID    string       `json:"user_id"`
+	Address   string       `json:"address"`
+	Chain     domain.Chain `json:"chain"`
+	Signature string       `json:"signature"`
+	Message   string       `json:"message"`
+	Nonce     string       `json:"nonce"`
 }
 
-// ActivateUser reactivates a suspended user account.
-type ActivateUser struct {
-	UserID      string
-	ActivatedBy string
+// CommandName returns the command name.
+func (c *LinkWallet) CommandName() string {
+	return TypeLinkWallet
 }
 
-// UpdatePrimaryDID updates the user's primary DID.
-type UpdatePrimaryDID struct {
-	UserID string
-	NewDID string
+// LinkWalletResult is the result of linking a wallet.
+type LinkWalletResult struct {
+	UserID  string `json:"user_id"`
+	Address string `json:"address"`
+	Chain   string `json:"chain"`
+	DID     string `json:"did"`
 }
 
-// DeleteUser deletes a user and all associated data.
-type DeleteUser struct {
-	UserID    string
-	DeletedBy string
-	Reason    string
+// ============================================================================
+// Unlink Wallet Command
+// ============================================================================
+
+// UnlinkWallet unlinks a wallet from a user.
+type UnlinkWallet struct {
+	UserID  string       `json:"user_id"`
+	Address string       `json:"address"`
+	Chain   domain.Chain `json:"chain"`
 }
+
+// CommandName returns the command name.
+func (c *UnlinkWallet) CommandName() string {
+	return TypeUnlinkWallet
+}
+
+// UnlinkWalletResult is the result of unlinking a wallet.
+type UnlinkWalletResult struct {
+	UserID  string `json:"user_id"`
+	Address string `json:"address"`
+	Chain   string `json:"chain"`
+}
+
+// ============================================================================
+// Interface Compliance
+// ============================================================================
+
+var (
+	_ cqrs.Command = (*RequestChallenge)(nil)
+	_ cqrs.Command = (*RegisterWithWallet)(nil)
+	_ cqrs.Command = (*AuthenticateWithWallet)(nil)
+	_ cqrs.Command = (*RefreshToken)(nil)
+	_ cqrs.Command = (*RevokeSession)(nil)
+	_ cqrs.Command = (*RevokeAllSessions)(nil)
+	_ cqrs.Command = (*CreateAPIKey)(nil)
+	_ cqrs.Command = (*RevokeAPIKey)(nil)
+	_ cqrs.Command = (*LinkWallet)(nil)
+	_ cqrs.Command = (*UnlinkWallet)(nil)
+)

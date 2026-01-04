@@ -7,6 +7,28 @@ import (
 )
 
 // ============================================================================
+// List Options
+// ============================================================================
+
+// ListOptions contains common pagination and sorting options.
+type ListOptions struct {
+	Limit     int    `json:"limit"`
+	Offset    int    `json:"offset"`
+	SortBy    string `json:"sort_by,omitempty"`
+	SortOrder string `json:"sort_order,omitempty"`
+}
+
+// DefaultListOptions returns sensible defaults.
+func DefaultListOptions() ListOptions {
+	return ListOptions{
+		Limit:     20,
+		Offset:    0,
+		SortBy:    "created_at",
+		SortOrder: "desc",
+	}
+}
+
+// ============================================================================
 // Read Repository
 // ============================================================================
 

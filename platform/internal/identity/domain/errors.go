@@ -261,14 +261,29 @@ func IsUserAlreadyExists(err error) bool {
 	return errors.GetCode(err) == CodeUserAlreadyExists
 }
 
+// IsUserDisabled checks if error is user disabled.
+func IsUserDisabled(err error) bool {
+	return errors.GetCode(err) == CodeUserDisabled
+}
+
 // IsInvalidCredentials checks if error is invalid credentials.
 func IsInvalidCredentials(err error) bool {
 	return errors.GetCode(err) == CodeInvalidCredentials
 }
 
+// IsSessionNotFound checks if error is session not found.
+func IsSessionNotFound(err error) bool {
+	return errors.GetCode(err) == CodeSessionNotFound
+}
+
 // IsSessionExpired checks if error is session expired.
 func IsSessionExpired(err error) bool {
 	return errors.GetCode(err) == CodeSessionExpired
+}
+
+// IsSessionRevoked checks if error is session revoked.
+func IsSessionRevoked(err error) bool {
+	return errors.GetCode(err) == CodeSessionRevoked
 }
 
 // IsTokenExpired checks if error is token expired.
@@ -299,6 +314,36 @@ func IsChallengeInvalid(err error) bool {
 // IsChallengeUsed checks if error is challenge already used.
 func IsChallengeUsed(err error) bool {
 	return errors.GetCode(err) == CodeChallengeUsed
+}
+
+// IsConnectionNotFound checks if error is connection not found.
+func IsConnectionNotFound(err error) bool {
+	return errors.GetCode(err) == CodeConnectionNotFound
+}
+
+// IsConnectionAlreadyExists checks if error is connection already exists.
+func IsConnectionAlreadyExists(err error) bool {
+	return errors.GetCode(err) == CodeConnectionAlreadyExists
+}
+
+// IsAPIKeyNotFound checks if error is API key not found.
+func IsAPIKeyNotFound(err error) bool {
+	return errors.GetCode(err) == CodeAPIKeyNotFound
+}
+
+// IsAPIKeyExpired checks if error is API key expired.
+func IsAPIKeyExpired(err error) bool {
+	return errors.GetCode(err) == CodeAPIKeyExpired
+}
+
+// IsAPIKeyRevoked checks if error is API key revoked.
+func IsAPIKeyRevoked(err error) bool {
+	return errors.GetCode(err) == CodeAPIKeyRevoked
+}
+
+// IsWalletNotFound checks if error is wallet not found.
+func IsWalletNotFound(err error) bool {
+	return errors.GetCode(err) == CodeWalletNotFound
 }
 
 // IsWalletAlreadyLinked checks if error is wallet already linked.
