@@ -2,13 +2,14 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/0xsj/nexus/platform/internal/credential/application/query"
 	"github.com/0xsj/nexus/platform/internal/credential/domain"
+	"github.com/0xsj/nexus/platform/pkg/database"
+	pgadapter "github.com/0xsj/nexus/platform/pkg/database/postgres"
 	"github.com/0xsj/nexus/platform/pkg/eventsourcing"
 )
 
@@ -18,12 +19,14 @@ import (
 
 // Repository implements credential persistence using PostgreSQL.
 type Repository struct {
-	db *sql.DB
+	adapter *pgadapter.BaseAdapter
 }
 
 // NewRepository creates a new PostgreSQL repository.
-func NewRepository(db *sql.DB) *Repository {
-	return &Repository{db: db}
+func NewRepository(db *pgadapter.DB) *Repository {
+	return &Repository{
+		adapter: pgadapter.NewBaseAdapter(db),
+	}
 }
 
 // ============================================================================
@@ -52,7 +55,7 @@ func (r *Repository) insert(ctx context.Context, credential *domain.Credential) 
 		return fmt.Errorf("failed to map credential: %w", err)
 	}
 
-	_, err = r.db.ExecContext(ctx, queryInsert, args...)
+	_, err = r.adapter.Exec(ctx, queryInsert, args...)
 	if err != nil {
 		return fmt.Errorf("failed to insert credential: %w", err)
 	}
@@ -67,7 +70,7 @@ func (r *Repository) update(ctx context.Context, credential *domain.Credential) 
 		return fmt.Errorf("failed to map credential: %w", err)
 	}
 
-	result, err := r.db.ExecContext(ctx, queryUpdate, args...)
+	result, err := r.adapter.Exec(ctx, queryUpdate, args...)
 	if err != nil {
 		return fmt.Errorf("failed to update credential: %w", err)
 	}
@@ -80,7 +83,8 @@ func (r *Repository) update(ctx context.Context, credential *domain.Credential) 
 	if rowsAffected == 0 {
 		// Fetch actual version for error message
 		var actualVersion int
-		_ = r.db.QueryRowContext(ctx, "SELECT version FROM credentials WHERE id = $1", credential.AggregateID()).Scan(&actualVersion)
+		row := r.adapter.Executor().QueryRow(ctx, "SELECT version FROM credentials WHERE id = $1", credential.AggregateID())
+		_ = row.Scan(&actualVersion)
 
 		return eventsourcing.ErrConcurrencyConflict(
 			"Repository.update",
@@ -96,9 +100,10 @@ func (r *Repository) update(ctx context.Context, credential *domain.Credential) 
 // Load retrieves a credential aggregate by ID.
 func (r *Repository) Load(ctx context.Context, id string) (*domain.Credential, error) {
 	row := &CredentialRow{}
-	err := r.db.QueryRowContext(ctx, querySelectByID, id).Scan(row.ScanFields()...)
+	dbRow := r.adapter.Executor().QueryRow(ctx, querySelectByID, id)
+	err := dbRow.Scan(row.ScanFields()...)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if isNoRows(err) {
 			return nil, eventsourcing.ErrAggregateNotFound(
 				"Repository.Load",
 				domain.AggregateType,
@@ -114,7 +119,8 @@ func (r *Repository) Load(ctx context.Context, id string) (*domain.Credential, e
 // Exists checks if a credential exists.
 func (r *Repository) Exists(ctx context.Context, id string) (bool, error) {
 	var exists bool
-	err := r.db.QueryRowContext(ctx, queryExists, id).Scan(&exists)
+	row := r.adapter.Executor().QueryRow(ctx, queryExists, id)
+	err := row.Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check credential existence: %w", err)
 	}
@@ -123,7 +129,7 @@ func (r *Repository) Exists(ctx context.Context, id string) (bool, error) {
 
 // Delete removes a credential by ID.
 func (r *Repository) Delete(ctx context.Context, id string) error {
-	result, err := r.db.ExecContext(ctx, queryDelete, id)
+	result, err := r.adapter.Exec(ctx, queryDelete, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete credential: %w", err)
 	}
@@ -151,9 +157,10 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 // GetByID retrieves a credential view by ID.
 func (r *Repository) GetByID(ctx context.Context, id string) (*query.CredentialView, error) {
 	row := &CredentialRow{}
-	err := r.db.QueryRowContext(ctx, querySelectByID, id).Scan(row.ScanFields()...)
+	dbRow := r.adapter.Executor().QueryRow(ctx, querySelectByID, id)
+	err := dbRow.Scan(row.ScanFields()...)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if isNoRows(err) {
 			return nil, eventsourcing.ErrAggregateNotFound(
 				"Repository.GetByID",
 				domain.AggregateType,
@@ -174,7 +181,8 @@ func (r *Repository) List(ctx context.Context, opts query.ListOptions) (*query.C
 	// Count total
 	countQuery := queryCountBase + where
 	var total int
-	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+	row := r.adapter.Executor().QueryRow(ctx, countQuery, args...)
+	if err := row.Scan(&total); err != nil {
 		return nil, fmt.Errorf("failed to count credentials: %w", err)
 	}
 
@@ -184,7 +192,7 @@ func (r *Repository) List(ctx context.Context, opts query.ListOptions) (*query.C
 	// Build full query with pagination
 	selectQuery := querySelectBase + where + orderBy + fmt.Sprintf(" LIMIT %d OFFSET %d", opts.Limit, opts.Offset)
 
-	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
+	rows, err := r.adapter.Select(ctx, selectQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list credentials: %w", err)
 	}
@@ -224,7 +232,8 @@ func (r *Repository) ListByHolder(ctx context.Context, holderDID string, opts qu
 	// Count total
 	countQuery := queryCountBase + where
 	var total int
-	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+	row := r.adapter.Executor().QueryRow(ctx, countQuery, args...)
+	if err := row.Scan(&total); err != nil {
 		return nil, fmt.Errorf("failed to count credentials: %w", err)
 	}
 
@@ -234,7 +243,7 @@ func (r *Repository) ListByHolder(ctx context.Context, holderDID string, opts qu
 	// Build full query
 	selectQuery := querySelectBase + where + orderBy + fmt.Sprintf(" LIMIT %d OFFSET %d", opts.Limit, opts.Offset)
 
-	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
+	rows, err := r.adapter.Select(ctx, selectQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list credentials by holder: %w", err)
 	}
@@ -274,7 +283,8 @@ func (r *Repository) ListByIssuer(ctx context.Context, issuerDID string, opts qu
 	// Count total
 	countQuery := queryCountBase + where
 	var total int
-	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+	row := r.adapter.Executor().QueryRow(ctx, countQuery, args...)
+	if err := row.Scan(&total); err != nil {
 		return nil, fmt.Errorf("failed to count credentials: %w", err)
 	}
 
@@ -284,7 +294,7 @@ func (r *Repository) ListByIssuer(ctx context.Context, issuerDID string, opts qu
 	// Build full query
 	selectQuery := querySelectBase + where + orderBy + fmt.Sprintf(" LIMIT %d OFFSET %d", opts.Limit, opts.Offset)
 
-	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
+	rows, err := r.adapter.Select(ctx, selectQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list credentials by issuer: %w", err)
 	}
@@ -307,7 +317,8 @@ func (r *Repository) ListByIssuer(ctx context.Context, issuerDID string, opts qu
 // Count returns the total number of credentials.
 func (r *Repository) Count(ctx context.Context) (int, error) {
 	var count int
-	err := r.db.QueryRowContext(ctx, queryCountBase).Scan(&count)
+	row := r.adapter.Executor().QueryRow(ctx, queryCountBase)
+	err := row.Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count credentials: %w", err)
 	}
@@ -317,7 +328,8 @@ func (r *Repository) Count(ctx context.Context) (int, error) {
 // CountByStatus returns the number of credentials with a specific status.
 func (r *Repository) CountByStatus(ctx context.Context, status string) (int, error) {
 	var count int
-	err := r.db.QueryRowContext(ctx, queryCountBase+" WHERE status = $1", status).Scan(&count)
+	row := r.adapter.Executor().QueryRow(ctx, queryCountBase+" WHERE status = $1", status)
+	err := row.Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count credentials by status: %w", err)
 	}
@@ -365,7 +377,7 @@ func buildOrderBy(opts query.ListOptions) string {
 }
 
 // scanCredentialViews scans rows into credential views.
-func scanCredentialViews(rows *sql.Rows) ([]*query.CredentialView, error) {
+func scanCredentialViews(rows database.Rows) ([]*query.CredentialView, error) {
 	var credentials []*query.CredentialView
 
 	for rows.Next() {
@@ -381,6 +393,11 @@ func scanCredentialViews(rows *sql.Rows) ([]*query.CredentialView, error) {
 	}
 
 	return credentials, nil
+}
+
+// isNoRows checks if the error is a "no rows" error.
+func isNoRows(err error) bool {
+	return err != nil && err.Error() == "no rows in result set"
 }
 
 // ============================================================================

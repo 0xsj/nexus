@@ -161,6 +161,26 @@ func mapDomainError(err error) *mappedError {
 		}
 	}
 
+	if domain.IsChallengeInvalid(err) {
+		return &mappedError{
+			status: http.StatusBadRequest,
+			response: &ErrorResponse{
+				Error: "challenge invalid",
+				Code:  "CHALLENGE_INVALID",
+			},
+		}
+	}
+
+	if domain.IsChallengeUsed(err) {
+		return &mappedError{
+			status: http.StatusBadRequest,
+			response: &ErrorResponse{
+				Error: "challenge already used",
+				Code:  "CHALLENGE_USED",
+			},
+		}
+	}
+
 	// Credential errors
 	if domain.IsInvalidCredentials(err) {
 		return &mappedError{
@@ -231,6 +251,27 @@ func mapDomainError(err error) *mappedError {
 			response: &ErrorResponse{
 				Error: "wallet not found",
 				Code:  "WALLET_NOT_FOUND",
+			},
+		}
+	}
+
+	if domain.IsWalletAlreadyLinked(err) {
+		return &mappedError{
+			status: http.StatusConflict,
+			response: &ErrorResponse{
+				Error: "wallet already linked",
+				Code:  "WALLET_ALREADY_LINKED",
+			},
+		}
+	}
+
+	// Signature errors
+	if domain.IsInvalidSignature(err) {
+		return &mappedError{
+			status: http.StatusUnauthorized,
+			response: &ErrorResponse{
+				Error: "invalid signature",
+				Code:  "INVALID_SIGNATURE",
 			},
 		}
 	}

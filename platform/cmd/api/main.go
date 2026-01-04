@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	_ "github.com/jackc/pgx/v5/stdlib" // Register pgx driver for database/sql
 
 	"github.com/0xsj/nexus/platform/internal/credential"
+	"github.com/0xsj/nexus/platform/internal/identity"
 	"github.com/0xsj/nexus/platform/pkg/config"
 	"github.com/0xsj/nexus/platform/pkg/database"
 	"github.com/0xsj/nexus/platform/pkg/database/postgres"
@@ -23,7 +22,6 @@ import (
 
 var (
 	version = "0.1.0"
-	// buildTime = "unknown"
 )
 
 func main() {
@@ -55,8 +53,8 @@ func main() {
 	// Register health checks
 	checker.Register("self", health.AlwaysUp())
 
-	// Initialize database (optional based on environment)
-	var stdDB *sql.DB
+	// Initialize database
+	var db *postgres.DB
 
 	if shouldConnectDatabase() {
 		logger.Info("connecting to PostgreSQL...")
@@ -70,14 +68,14 @@ func main() {
 		)
 
 		var err error
-		stdDB, err = openStdlibDB(dbConfig)
+		db, err = postgres.New(ctx, dbConfig)
 		if err != nil {
 			logger.Fatal("failed to connect to database", log.Err(err))
 		}
-		defer stdDB.Close()
+		defer db.Close()
 
 		// Register database health check
-		checker.Register("postgres", health.DatabaseWithStats(stdDB))
+		checker.Register("postgres", postgresHealthCheck(db))
 
 		logger.Info("connected to PostgreSQL",
 			log.String("host", dbConfig.Host),
@@ -85,18 +83,35 @@ func main() {
 			log.String("database", dbConfig.Database),
 		)
 	} else {
-		logger.Info("running without database (in-memory mode)")
+		logger.Info("running without database")
 	}
 
 	// Initialize credential module
 	credentialConfig := credential.ModuleConfig{
 		EnableSigning: true,
-		Database:      stdDB, // nil = in-memory, non-nil = PostgreSQL
+		Database:      db,
 	}
 
 	credentialModule, err := credential.NewModuleWithConfig(logger, credentialConfig)
 	if err != nil {
 		logger.Fatal("failed to initialize credential module", log.Err(err))
+	}
+
+	// Initialize identity module (requires database)
+	var identityModule *identity.Module
+	if db != nil {
+		identityConfig := identity.ModuleConfig{
+			Database:      db,
+			Domain:        config.GetEnv("AUTH_DOMAIN", "proof.io"),
+			URI:           config.GetEnv("AUTH_URI", "https://proof.io"),
+			TokenIssuer:   config.GetEnv("TOKEN_ISSUER", "https://proof.io"),
+			TokenAudience: []string{config.GetEnv("TOKEN_AUDIENCE", "https://proof.io")},
+		}
+
+		identityModule, err = identity.NewModuleWithConfig(logger, identityConfig)
+		if err != nil {
+			logger.Fatal("failed to initialize identity module", log.Err(err))
+		}
 	}
 
 	// Create health handler
@@ -113,7 +128,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Recovery(),
 		middleware.Logger(logger),
-		middleware.CORSAllowAll(), // TODO: Configure for production
+		middleware.CORSAllowAll(),
 		middleware.Timeout(30*time.Second),
 	)
 
@@ -129,7 +144,12 @@ func main() {
 			r.Get("/", handleRoot(logger))
 
 			// Mount credential routes
-			r.Mount("/", credentialModule.Routes())
+			r.Mount("/credentials", credentialModule.Routes())
+
+			// Mount identity routes (if database available)
+			if identityModule != nil {
+				r.Mount("/", identityModule.Routes())
+			}
 		})
 	})
 
@@ -149,8 +169,8 @@ func main() {
 	// Mark as started
 	checker.MarkStarted()
 
-	storageMode := "in-memory"
-	if stdDB != nil {
+	storageMode := "none"
+	if db != nil {
 		storageMode = "PostgreSQL"
 	}
 
@@ -159,9 +179,8 @@ func main() {
 		log.String("version", version),
 		log.String("storage", storageMode),
 		log.String("health", "/health"),
-		log.String("liveness", "/healthz"),
-		log.String("readiness", "/readyz"),
 		log.String("credentials", "/api/v1/credentials"),
+		log.String("auth", "/api/v1/auth"),
 	)
 
 	// Start server with graceful shutdown
@@ -184,12 +203,10 @@ func main() {
 // Database Configuration
 // ============================================================================
 
-// shouldConnectDatabase determines if we should connect to the database.
 func shouldConnectDatabase() bool {
 	return config.GetEnv("DATABASE_HOST", "") != ""
 }
 
-// buildDatabaseConfig builds database configuration from environment variables.
 func buildDatabaseConfig() postgres.Config {
 	baseConfig := database.DefaultConfig().
 		WithHost(config.GetEnv("DATABASE_HOST", "localhost")).
@@ -205,33 +222,34 @@ func buildDatabaseConfig() postgres.Config {
 		WithApplicationName("nexus-api")
 }
 
-// openStdlibDB opens a database/sql connection using pgx stdlib driver.
-func openStdlibDB(cfg postgres.Config) (*sql.DB, error) {
-	db, err := sql.Open("pgx", cfg.DSN())
-	if err != nil {
-		return nil, err
+// postgresHealthCheck creates a health check for postgres.DB.
+func postgresHealthCheck(db *postgres.DB) health.Check {
+	return func(ctx context.Context) *health.Result {
+		start := time.Now()
+
+		status := db.HealthCheck(ctx)
+		duration := time.Since(start)
+
+		if status.Healthy {
+			return health.Up().
+				WithDuration(duration).
+				WithMessage(status.Message).
+				WithDetail("latency_ms", status.LatencyMs).
+				WithDetail("open_connections", status.Stats.OpenConnections).
+				WithDetail("in_use", status.Stats.InUse).
+				WithDetail("idle", status.Stats.Idle)
+		}
+
+		return health.Down(nil).
+			WithDuration(duration).
+			WithMessage(status.Message)
 	}
-
-	// Configure pool
-	db.SetMaxOpenConns(cfg.MaxOpenConns)
-	db.SetMaxIdleConns(cfg.MaxIdleConns)
-	db.SetConnMaxLifetime(cfg.ConnMaxLifetime())
-	db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime())
-
-	// Verify connection
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, err
-	}
-
-	return db, nil
 }
 
 // ============================================================================
 // Handlers
 // ============================================================================
 
-// handleRoot handles the root endpoint.
 func handleRoot(logger log.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		requestID := middleware.GetRequestID(r.Context())

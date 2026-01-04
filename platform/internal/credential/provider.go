@@ -1,8 +1,6 @@
 package credential
 
 import (
-	"database/sql"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/wire"
 
@@ -16,6 +14,7 @@ import (
 	httpv1 "github.com/0xsj/nexus/platform/internal/credential/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/cqrs"
 	"github.com/0xsj/nexus/platform/pkg/crypto/ed25519"
+	pgadapter "github.com/0xsj/nexus/platform/pkg/database/postgres"
 	"github.com/0xsj/nexus/platform/pkg/did"
 	"github.com/0xsj/nexus/platform/pkg/did/key"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
@@ -52,7 +51,7 @@ type ModuleConfig struct {
 
 	// Database is the PostgreSQL database connection.
 	// If nil, in-memory storage is used.
-	Database *sql.DB
+	Database *pgadapter.DB
 }
 
 // DefaultModuleConfig returns default configuration.
