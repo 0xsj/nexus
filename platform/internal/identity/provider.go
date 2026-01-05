@@ -135,11 +135,10 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	}
 	tokenService := token.NewService(signer, verifier, tokenConfig)
 
-	// Create challenge service
-	challengeConfig := challenge.Config{
-		Domain: cfg.Domain,
-		URI:    cfg.URI,
-	}
+	// Create challenge service (start with defaults to preserve TTL and nonce length)
+	challengeConfig := challenge.DefaultConfig()
+	challengeConfig.Domain = cfg.Domain
+	challengeConfig.URI = cfg.URI
 	challengeService := challenge.NewService(challengeConfig)
 
 	// Create signature verifier
