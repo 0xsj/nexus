@@ -8,6 +8,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/identity/application/query"
 	"github.com/0xsj/nexus/platform/internal/identity/domain"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/challenge"
+	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/email"
+	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/magiclink"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/persistence/postgres"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/signature"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/token"
@@ -53,6 +55,30 @@ type ModuleConfig struct {
 	// PrivateKey is the Ed25519 private key bytes for signing tokens.
 	// If empty, a new key pair will be generated.
 	PrivateKey []byte
+
+	// Email configuration
+	EmailConfig *EmailConfig
+}
+
+// EmailConfig holds email service configuration.
+type EmailConfig struct {
+	// BaseURL is the base URL for magic links (e.g., "https://proof.io")
+	BaseURL string
+
+	// FromAddress is the sender email address
+	FromAddress string
+
+	// FromName is the sender name
+	FromName string
+}
+
+// DefaultEmailConfig returns default email configuration.
+func DefaultEmailConfig() *EmailConfig {
+	return &EmailConfig{
+		BaseURL:     "https://proof.io",
+		FromAddress: "noreply@proof.io",
+		FromName:    "Proof",
+	}
 }
 
 // DefaultModuleConfig returns default configuration.
@@ -62,6 +88,7 @@ func DefaultModuleConfig() ModuleConfig {
 		URI:           "https://proof.io",
 		TokenIssuer:   "https://proof.io",
 		TokenAudience: []string{"https://proof.io"},
+		EmailConfig:   DefaultEmailConfig(),
 	}
 }
 
@@ -83,6 +110,8 @@ type Module struct {
 	tokenService      domain.TokenService
 	challengeService  domain.ChallengeService
 	signatureVerifier domain.SignatureVerifier
+	magicLinkService  domain.MagicLinkService
+	emailService      domain.EmailService
 
 	// CQRS
 	commandBus *cqrs.InMemoryCommandBus
@@ -135,11 +164,10 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	}
 	tokenService := token.NewService(signer, verifier, tokenConfig)
 
-	// Create challenge service
-	challengeConfig := challenge.Config{
-		Domain: cfg.Domain,
-		URI:    cfg.URI,
-	}
+	// Create challenge service (start with defaults to preserve TTL and nonce length)
+	challengeConfig := challenge.DefaultConfig()
+	challengeConfig.Domain = cfg.Domain
+	challengeConfig.URI = cfg.URI
 	challengeService := challenge.NewService(challengeConfig)
 
 	// Create signature verifier
@@ -148,11 +176,29 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	}
 	signatureVerifier := signature.NewVerifier(signatureConfig)
 
-	// Create reader (for queries)
-	reader := postgres.NewReader(adapter, tokenService)
-
 	// Create ID generator
 	idGenerator := id.NewGenerator()
+
+	// Create magic link service
+	magicLinkConfig := magiclink.DefaultConfig()
+	magicLinkService := magiclink.NewService(magicLinkConfig, idGenerator)
+
+	// Create email service
+	emailConfig := cfg.EmailConfig
+	if emailConfig == nil {
+		emailConfig = DefaultEmailConfig()
+	}
+
+	// Use console sender for development (logs emails instead of sending)
+	emailSender := email.NewConsoleSender(logger)
+	emailService := email.NewService(emailSender, email.Config{
+		BaseURL:     emailConfig.BaseURL,
+		FromAddress: emailConfig.FromAddress,
+		FromName:    emailConfig.FromName,
+	}, logger)
+
+	// Create reader (for queries)
+	reader := postgres.NewReader(adapter, tokenService)
 
 	// Create CQRS buses
 	commandBus := cqrs.NewCommandBus()
@@ -166,6 +212,8 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 		ChallengeService:  challengeService,
 		TokenService:      tokenService,
 		SignatureVerifier: signatureVerifier,
+		MagicLinkService:  magicLinkService,
+		EmailService:      emailService,
 		IDGenerator:       idGenerator,
 	}
 
@@ -196,6 +244,7 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	logger.Info("identity module initialized",
 		log.String("storage", "PostgreSQL"),
 		log.String("domain", cfg.Domain),
+		log.String("email_sender", "console"),
 	)
 
 	return &Module{
@@ -207,6 +256,8 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 		tokenService:      tokenService,
 		challengeService:  challengeService,
 		signatureVerifier: signatureVerifier,
+		magicLinkService:  magicLinkService,
+		emailService:      emailService,
 		commandBus:        commandBus,
 		queryBus:          queryBus,
 		logger:            logger,
@@ -255,6 +306,16 @@ func (m *Module) TokenService() domain.TokenService {
 // ChallengeService returns the challenge service.
 func (m *Module) ChallengeService() domain.ChallengeService {
 	return m.challengeService
+}
+
+// MagicLinkService returns the magic link service.
+func (m *Module) MagicLinkService() domain.MagicLinkService {
+	return m.magicLinkService
+}
+
+// EmailService returns the email service.
+func (m *Module) EmailService() domain.EmailService {
+	return m.emailService
 }
 
 // ============================================================================

@@ -74,6 +74,9 @@ const (
 	// AuthMethodWallet is wallet signature auth (EIP-4361 SIWE, etc.).
 	AuthMethodWallet AuthMethod = "wallet"
 
+	// AuthMethodEmail is magic link email auth.
+	AuthMethodEmail AuthMethod = "email"
+
 	// AuthMethodDIDAuth is DID-based authentication (DID AuthN).
 	AuthMethodDIDAuth AuthMethod = "did_auth"
 
@@ -95,7 +98,7 @@ func (m AuthMethod) String() string {
 // IsValid checks if the auth method is supported.
 func (m AuthMethod) IsValid() bool {
 	switch m {
-	case AuthMethodWallet, AuthMethodDIDAuth, AuthMethodPasskey, AuthMethodOAuth, AuthMethodVerifiablePresentation:
+	case AuthMethodWallet, AuthMethodEmail, AuthMethodDIDAuth, AuthMethodPasskey, AuthMethodOAuth, AuthMethodVerifiablePresentation:
 		return true
 	default:
 		return false
@@ -114,7 +117,7 @@ func (m AuthMethod) IsDecentralized() bool {
 
 // IsBridge returns true if the auth method is for Web2 compatibility.
 func (m AuthMethod) IsBridge() bool {
-	return m == AuthMethodOAuth
+	return m == AuthMethodOAuth || m == AuthMethodEmail
 }
 
 // ============================================================================

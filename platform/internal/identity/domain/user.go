@@ -101,6 +101,37 @@ func NewUserFromWallet(id string, wallet WalletAddress) (*User, error) {
 	return user, nil
 }
 
+// NewUserFromEmail creates a new user from an email address.
+// Generates a did:key as the primary DID since email doesn't have a native DID.
+func NewUserFromEmail(id string, email string) (*User, error) {
+	if id == "" {
+		return nil, ErrInvalidCredentials("User.NewFromEmail")
+	}
+
+	if email == "" {
+		return nil, ErrInvalidEmail("User.NewFromEmail", email)
+	}
+
+	// Generate a did:key for email users
+	// In production, this would use proper key generation
+	primaryDID, err := did.Parse("did:key:" + id)
+	if err != nil {
+		return nil, ErrInvalidCredentials("User.NewFromEmail")
+	}
+
+	user, err := NewUser(id, primaryDID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add email as linked identity (verified since they clicked magic link)
+	if err := user.LinkEmail(email, true); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
 // Reconstitute creates a User from persisted data (no events raised).
 func Reconstitute(
 	id string,
@@ -426,6 +457,18 @@ func (u *User) VerifyEmail(email string) error {
 	}
 
 	return ErrConnectionNotFound("User.VerifyEmail", "email", u.ID())
+}
+
+// VerifyPrimaryEmail marks the user's first unverified email as verified.
+func (u *User) VerifyPrimaryEmail() {
+	for i, identity := range u.linkedIdentities {
+		if identity.Type == IdentityTypeEmail && !identity.Verified {
+			u.linkedIdentities[i].Verified = true
+			u.linkedIdentities[i].VerifiedAt = time.Now()
+			u.Raise(u, NewEmailVerifiedEvent(u.ID(), identity.Value))
+			return
+		}
+	}
 }
 
 // LinkWallet links a wallet address to this user.

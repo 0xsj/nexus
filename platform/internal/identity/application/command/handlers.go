@@ -717,6 +717,260 @@ func (h *UnlinkWalletHandler) Handle(ctx context.Context, cmd *UnlinkWallet) (*c
 }
 
 // ============================================================================
+// Request Magic Link Handler
+// ============================================================================
+
+// RequestMagicLinkHandler handles RequestMagicLink commands.
+type RequestMagicLinkHandler struct {
+	userRepo         domain.UserRepository
+	magicLinkService domain.MagicLinkService
+	emailService     domain.EmailService
+}
+
+// NewRequestMagicLinkHandler creates a new RequestMagicLinkHandler.
+func NewRequestMagicLinkHandler(
+	userRepo domain.UserRepository,
+	magicLinkService domain.MagicLinkService,
+	emailService domain.EmailService,
+) *RequestMagicLinkHandler {
+	return &RequestMagicLinkHandler{
+		userRepo:         userRepo,
+		magicLinkService: magicLinkService,
+		emailService:     emailService,
+	}
+}
+
+// Handle handles the RequestMagicLink command.
+func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicLink) (*cqrs.CommandResult, error) {
+	// Determine purpose based on whether user exists
+	purpose := cmd.Purpose
+	if purpose == "" {
+		// Auto-detect: login if user exists, register if not
+		_, err := h.userRepo.FindByEmail(ctx, cmd.Email)
+		if err != nil {
+			if domain.IsUserNotFound(err) {
+				purpose = domain.MagicLinkPurposeRegister
+			} else {
+				// Don't reveal internal errors - still return success
+				return &cqrs.CommandResult{
+					Data: &RequestMagicLinkResult{
+						Success: true,
+						Message: "If this email is registered, you will receive a magic link shortly.",
+					},
+				}, nil
+			}
+		} else {
+			purpose = domain.MagicLinkPurposeLogin
+		}
+	}
+
+	// Revoke any existing pending tokens for this email
+	_ = h.magicLinkService.RevokeAllForEmail(ctx, cmd.Email)
+
+	// Create magic link token
+	token, err := h.magicLinkService.CreateToken(ctx, domain.CreateMagicLinkParams{
+		Email:     cmd.Email,
+		Purpose:   purpose,
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	})
+	if err != nil {
+		// Don't reveal errors - prevents email enumeration
+		return &cqrs.CommandResult{
+			Data: &RequestMagicLinkResult{
+				Success: true,
+				Message: "If this email is registered, you will receive a magic link shortly.",
+			},
+		}, nil
+	}
+
+	// Send magic link email
+	err = h.emailService.SendMagicLink(ctx, domain.SendMagicLinkParams{
+		To:        cmd.Email,
+		Token:     token.Token(),
+		Purpose:   purpose,
+		ExpiresAt: token.ExpiresAt(),
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	})
+	if err != nil {
+		// Log error but don't reveal to user
+		return &cqrs.CommandResult{
+			Data: &RequestMagicLinkResult{
+				Success: true,
+				Message: "If this email is registered, you will receive a magic link shortly.",
+			},
+		}, nil
+	}
+
+	return &cqrs.CommandResult{
+		Data: &RequestMagicLinkResult{
+			Success: true,
+			Message: "If this email is registered, you will receive a magic link shortly.",
+		},
+	}, nil
+}
+
+// ============================================================================
+// Verify Magic Link Handler
+// ============================================================================
+
+// VerifyMagicLinkHandler handles VerifyMagicLink commands.
+type VerifyMagicLinkHandler struct {
+	userRepo         domain.UserRepository
+	sessionRepo      domain.SessionRepository
+	magicLinkService domain.MagicLinkService
+	tokenService     domain.TokenService
+	emailService     domain.EmailService
+	idGenerator      id.Generator
+}
+
+// NewVerifyMagicLinkHandler creates a new VerifyMagicLinkHandler.
+func NewVerifyMagicLinkHandler(
+	userRepo domain.UserRepository,
+	sessionRepo domain.SessionRepository,
+	magicLinkService domain.MagicLinkService,
+	tokenService domain.TokenService,
+	emailService domain.EmailService,
+	idGenerator id.Generator,
+) *VerifyMagicLinkHandler {
+	return &VerifyMagicLinkHandler{
+		userRepo:         userRepo,
+		sessionRepo:      sessionRepo,
+		magicLinkService: magicLinkService,
+		tokenService:     tokenService,
+		emailService:     emailService,
+		idGenerator:      idGenerator,
+	}
+}
+
+// Handle handles the VerifyMagicLink command.
+func (h *VerifyMagicLinkHandler) Handle(ctx context.Context, cmd *VerifyMagicLink) (*cqrs.CommandResult, error) {
+	const op = "VerifyMagicLinkHandler.Handle"
+
+	// Validate and consume the magic link token
+	magicLink, err := h.magicLinkService.ValidateToken(ctx, cmd.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	var user *domain.User
+
+	switch magicLink.Purpose() {
+	case domain.MagicLinkPurposeRegister:
+		// Create new user
+		user, err = h.createUserFromEmail(ctx, magicLink.Email())
+		if err != nil {
+			return nil, err
+		}
+
+		// Send welcome email
+		_ = h.emailService.SendWelcome(ctx, domain.SendWelcomeParams{
+			To:       magicLink.Email(),
+			Username: magicLink.Email(),
+		})
+
+	case domain.MagicLinkPurposeLogin:
+		// Find existing user
+		user, err = h.userRepo.FindByEmail(ctx, magicLink.Email())
+		if err != nil {
+			return nil, err
+		}
+
+		// Check user status
+		if !user.CanAuthenticate() {
+			return nil, domain.ErrUserDisabled(op, user.ID())
+		}
+
+		// Update last login
+		user.RecordLogin(domain.AuthMethodEmail)
+		_ = h.userRepo.Save(ctx, user)
+
+	case domain.MagicLinkPurposeVerify:
+		// Find existing user and verify email
+		user, err = h.userRepo.FindByEmail(ctx, magicLink.Email())
+		if err != nil {
+			return nil, err
+		}
+
+		user.VerifyPrimaryEmail()
+		_ = h.userRepo.Save(ctx, user)
+
+	default:
+		return nil, domain.ErrMagicLinkInvalid(op, "unknown purpose")
+	}
+
+	// Create session
+	sessionID := h.idGenerator.Generate().String()
+	tokenHash, _ := domain.GenerateSessionToken()
+	expiresAt := time.Now().Add(24 * time.Hour)
+
+	session := domain.NewSession(
+		sessionID,
+		user.ID(),
+		domain.AuthMethodEmail,
+		tokenHash,
+		expiresAt,
+		cmd.UserAgent,
+		cmd.IPAddress,
+	)
+
+	if err := h.sessionRepo.Save(ctx, session); err != nil {
+		return nil, err
+	}
+
+	// Generate tokens
+	accessToken, err := h.tokenService.GenerateAccessToken(ctx, domain.AccessTokenParams{
+		UserID:    user.ID(),
+		DID:       user.PrimaryDID().String(),
+		SessionID: session.ID(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	refreshToken, err := h.tokenService.GenerateRefreshToken(ctx, domain.RefreshTokenParams{
+		UserID:    user.ID(),
+		SessionID: session.ID(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	accessExpiresAt := time.Now().Add(15 * time.Minute)
+
+	return &cqrs.CommandResult{
+		ID: user.ID(),
+		Data: &AuthResult{
+			UserID:       user.ID(),
+			DID:          user.PrimaryDID().String(),
+			SessionID:    session.ID(),
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+			TokenType:    "Bearer",
+			ExpiresIn:    int64(15 * 60),
+			ExpiresAt:    accessExpiresAt,
+		},
+	}, nil
+}
+
+// createUserFromEmail creates a new user from an email address.
+func (h *VerifyMagicLinkHandler) createUserFromEmail(ctx context.Context, email string) (*domain.User, error) {
+	userID := h.idGenerator.Generate().String()
+
+	user, err := domain.NewUserFromEmail(userID, email)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := h.userRepo.Save(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// ============================================================================
 // Handler Registration
 // ============================================================================
 
@@ -728,6 +982,8 @@ type HandlerDependencies struct {
 	ChallengeService  domain.ChallengeService
 	TokenService      domain.TokenService
 	SignatureVerifier domain.SignatureVerifier
+	MagicLinkService  domain.MagicLinkService
+	EmailService      domain.EmailService
 	IDGenerator       id.Generator
 }
 
@@ -766,6 +1022,19 @@ func RegisterHandlers(bus *cqrs.InMemoryCommandBus, deps HandlerDependencies) er
 			deps.SignatureVerifier,
 		),
 		TypeUnlinkWallet: NewUnlinkWalletHandler(deps.UserRepo),
+		TypeRequestMagicLink: NewRequestMagicLinkHandler(
+			deps.UserRepo,
+			deps.MagicLinkService,
+			deps.EmailService,
+		),
+		TypeVerifyMagicLink: NewVerifyMagicLinkHandler(
+			deps.UserRepo,
+			deps.SessionRepo,
+			deps.MagicLinkService,
+			deps.TokenService,
+			deps.EmailService,
+			deps.IDGenerator,
+		),
 	}
 
 	for cmdType, handler := range handlers {
@@ -792,4 +1061,6 @@ var (
 	_ cqrs.CommandHandler[*RevokeAPIKey]           = (*RevokeAPIKeyHandler)(nil)
 	_ cqrs.CommandHandler[*LinkWallet]             = (*LinkWalletHandler)(nil)
 	_ cqrs.CommandHandler[*UnlinkWallet]           = (*UnlinkWalletHandler)(nil)
+	_ cqrs.CommandHandler[*RequestMagicLink]       = (*RequestMagicLinkHandler)(nil)
+	_ cqrs.CommandHandler[*VerifyMagicLink]        = (*VerifyMagicLinkHandler)(nil)
 )

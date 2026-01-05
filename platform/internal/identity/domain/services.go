@@ -131,6 +131,77 @@ type CreateChallengeParams struct {
 }
 
 // ============================================================================
+// Magic Link Service
+// ============================================================================
+
+// MagicLinkService handles magic link token operations.
+type MagicLinkService interface {
+	// CreateToken creates a new magic link token.
+	CreateToken(ctx context.Context, params CreateMagicLinkParams) (*MagicLinkToken, error)
+
+	// ValidateToken validates and consumes a magic link token.
+	// Returns error if token is invalid, expired, or already used.
+	ValidateToken(ctx context.Context, token string) (*MagicLinkToken, error)
+
+	// RevokeToken revokes a magic link token.
+	RevokeToken(ctx context.Context, tokenID string) error
+
+	// RevokeAllForEmail revokes all pending tokens for an email.
+	RevokeAllForEmail(ctx context.Context, email string) error
+}
+
+// CreateMagicLinkParams contains parameters for magic link creation.
+type CreateMagicLinkParams struct {
+	Email     string
+	Purpose   MagicLinkPurpose
+	TTL       time.Duration
+	IPAddress string
+	UserAgent string
+}
+
+// ============================================================================
+// Email Service
+// ============================================================================
+
+// EmailService handles sending emails.
+type EmailService interface {
+	// SendMagicLink sends a magic link email.
+	SendMagicLink(ctx context.Context, params SendMagicLinkParams) error
+
+	// SendWelcome sends a welcome email to new users.
+	SendWelcome(ctx context.Context, params SendWelcomeParams) error
+
+	// SendSecurityAlert sends a security alert email.
+	SendSecurityAlert(ctx context.Context, params SendSecurityAlertParams) error
+}
+
+// SendMagicLinkParams contains parameters for sending a magic link email.
+type SendMagicLinkParams struct {
+	To        string
+	Token     string
+	Purpose   MagicLinkPurpose
+	ExpiresAt time.Time
+	IPAddress string
+	UserAgent string
+}
+
+// SendWelcomeParams contains parameters for sending a welcome email.
+type SendWelcomeParams struct {
+	To       string
+	Username string
+}
+
+// SendSecurityAlertParams contains parameters for sending a security alert.
+type SendSecurityAlertParams struct {
+	To        string
+	AlertType string
+	Message   string
+	IPAddress string
+	UserAgent string
+	Timestamp time.Time
+}
+
+// ============================================================================
 // DID Service
 // ============================================================================
 
