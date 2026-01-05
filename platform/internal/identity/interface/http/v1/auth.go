@@ -230,6 +230,90 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // ============================================================================
+// Magic Link Handlers
+// ============================================================================
+
+// RequestMagicLink sends a magic link to the provided email.
+// POST /v1/auth/magic-link/request
+func (h *Handler) RequestMagicLink(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req MagicLinkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteBadRequest(w, "invalid request body")
+		return
+	}
+
+	if req.Email == "" {
+		WriteValidationError(w, "email is required", nil)
+		return
+	}
+
+	result, err := h.dispatchCommand(ctx, &command.RequestMagicLink{
+		Email:     req.Email,
+		Purpose:   req.ToPurpose(),
+		IPAddress: GetClientIP(r),
+		UserAgent: GetUserAgent(r),
+	})
+	if err != nil {
+		h.logger.Error("failed to request magic link",
+			log.Err(err),
+			log.String("email", req.Email),
+		)
+		WriteError(w, err)
+		return
+	}
+
+	data := result.Data.(*command.RequestMagicLinkResult)
+
+	httpresponse.JSON(w, http.StatusOK, &MagicLinkResponse{
+		Success: data.Success,
+		Message: data.Message,
+	})
+}
+
+// VerifyMagicLink verifies a magic link token and authenticates the user.
+// POST /v1/auth/magic-link/verify
+func (h *Handler) VerifyMagicLink(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req VerifyMagicLinkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteBadRequest(w, "invalid request body")
+		return
+	}
+
+	if req.Token == "" {
+		WriteValidationError(w, "token is required", nil)
+		return
+	}
+
+	result, err := h.dispatchCommand(ctx, &command.VerifyMagicLink{
+		Token:     req.Token,
+		IPAddress: GetClientIP(r),
+		UserAgent: GetUserAgent(r),
+	})
+	if err != nil {
+		h.logger.Error("failed to verify magic link", log.Err(err))
+		WriteError(w, err)
+		return
+	}
+
+	data := result.Data.(*command.AuthResult)
+
+	httpresponse.JSON(w, http.StatusOK, &AuthResponse{
+		UserID:       data.UserID,
+		DID:          data.DID,
+		SessionID:    data.SessionID,
+		AccessToken:  data.AccessToken,
+		RefreshToken: data.RefreshToken,
+		TokenType:    data.TokenType,
+		ExpiresIn:    data.ExpiresIn,
+		ExpiresAt:    data.ExpiresAt,
+	})
+}
+
+// ============================================================================
 // Validation Helpers
 // ============================================================================
 

@@ -40,6 +40,12 @@ type RefreshResponse struct {
 	ExpiresAt   time.Time `json:"expires_at"`
 }
 
+// MagicLinkResponse is the response after requesting a magic link.
+type MagicLinkResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
 // ============================================================================
 // User Responses
 // ============================================================================

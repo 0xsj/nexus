@@ -22,6 +22,8 @@ const (
 	TypeRevokeAPIKey           = "identity.revoke_api_key"
 	TypeLinkWallet             = "identity.link_wallet"
 	TypeUnlinkWallet           = "identity.unlink_wallet"
+	TypeRequestMagicLink       = "identity.request_magic_link"
+	TypeVerifyMagicLink        = "identity.verify_magic_link"
 )
 
 // ============================================================================
@@ -275,6 +277,45 @@ type UnlinkWalletResult struct {
 }
 
 // ============================================================================
+// Request Magic Link Command
+// ============================================================================
+
+// RequestMagicLink requests a magic link for email authentication.
+type RequestMagicLink struct {
+	Email     string                  `json:"email"`
+	Purpose   domain.MagicLinkPurpose `json:"purpose"`
+	IPAddress string                  `json:"ip_address"`
+	UserAgent string                  `json:"user_agent"`
+}
+
+// CommandName returns the command name.
+func (c *RequestMagicLink) CommandName() string {
+	return TypeRequestMagicLink
+}
+
+// RequestMagicLinkResult is the result of requesting a magic link.
+type RequestMagicLinkResult struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// ============================================================================
+// Verify Magic Link Command
+// ============================================================================
+
+// VerifyMagicLink verifies a magic link token and authenticates the user.
+type VerifyMagicLink struct {
+	Token     string `json:"token"`
+	IPAddress string `json:"ip_address"`
+	UserAgent string `json:"user_agent"`
+}
+
+// CommandName returns the command name.
+func (c *VerifyMagicLink) CommandName() string {
+	return TypeVerifyMagicLink
+}
+
+// ============================================================================
 // Interface Compliance
 // ============================================================================
 
@@ -289,4 +330,6 @@ var (
 	_ cqrs.Command = (*RevokeAPIKey)(nil)
 	_ cqrs.Command = (*LinkWallet)(nil)
 	_ cqrs.Command = (*UnlinkWallet)(nil)
+	_ cqrs.Command = (*RequestMagicLink)(nil)
+	_ cqrs.Command = (*VerifyMagicLink)(nil)
 )

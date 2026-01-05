@@ -53,6 +53,35 @@ type RefreshTokenRequest struct {
 }
 
 // ============================================================================
+// Magic Link Requests
+// ============================================================================
+
+// MagicLinkRequest is the request to send a magic link.
+type MagicLinkRequest struct {
+	Email   string `json:"email" validate:"required,email"`
+	Purpose string `json:"purpose,omitempty" validate:"omitempty,oneof=login register verify"`
+}
+
+// ToPurpose converts the purpose string to domain.MagicLinkPurpose.
+func (r *MagicLinkRequest) ToPurpose() domain.MagicLinkPurpose {
+	switch r.Purpose {
+	case "login":
+		return domain.MagicLinkPurposeLogin
+	case "register":
+		return domain.MagicLinkPurposeRegister
+	case "verify":
+		return domain.MagicLinkPurposeVerify
+	default:
+		return "" // Auto-detect
+	}
+}
+
+// VerifyMagicLinkRequest is the request to verify a magic link.
+type VerifyMagicLinkRequest struct {
+	Token string `json:"token" validate:"required"`
+}
+
+// ============================================================================
 // Session Requests
 // ============================================================================
 

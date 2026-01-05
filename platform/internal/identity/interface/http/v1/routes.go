@@ -32,11 +32,15 @@ func NewRouter(cfg RouterConfig) chi.Router {
 
 	// Public routes (no auth required)
 	r.Group(func(r chi.Router) {
-		// Auth endpoints
+		// Auth endpoints - Wallet
 		r.Post("/auth/challenge", handler.RequestChallenge)
 		r.Post("/auth/register/wallet", handler.RegisterWithWallet)
 		r.Post("/auth/login/wallet", handler.LoginWithWallet)
 		r.Post("/auth/refresh", handler.RefreshToken)
+
+		// Auth endpoints - Magic Link
+		r.Post("/auth/magic-link/request", handler.RequestMagicLink)
+		r.Post("/auth/magic-link/verify", handler.VerifyMagicLink)
 
 		// Public profile
 		r.Get("/profiles/{did}", handler.GetPublicProfile)
