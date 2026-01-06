@@ -16,15 +16,16 @@ import (
 
 // UserRow represents a user database row.
 type UserRow struct {
-	ID          string         `db:"id"`
-	DID         string         `db:"did"`
-	Status      string         `db:"status"`
-	DisplayName sql.NullString `db:"display_name"`
-	AvatarURL   sql.NullString `db:"avatar_url"`
-	Bio         sql.NullString `db:"bio"`
-	CreatedAt   time.Time      `db:"created_at"`
-	UpdatedAt   time.Time      `db:"updated_at"`
-	LastLoginAt sql.NullTime   `db:"last_login_at"`
+	ID              string         `db:"id"`
+	DID             string         `db:"did"`
+	Status          string         `db:"status"`
+	DisplayName     sql.NullString `db:"display_name"`
+	AvatarURL       sql.NullString `db:"avatar_url"`
+	Bio             sql.NullString `db:"bio"`
+	LastLoginMethod sql.NullString `db:"last_login_method"`
+	CreatedAt       time.Time      `db:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at"`
+	LastLoginAt     sql.NullTime   `db:"last_login_at"`
 }
 
 // ToUserRow converts a domain User to a database row.
@@ -41,13 +42,20 @@ func ToUserRow(u *domain.User) *UserRow {
 		row.LastLoginAt = sql.NullTime{Time: u.LastLoginAt(), Valid: true}
 	}
 
+	if u.LastLoginMethod() != "" {
+		row.LastLoginMethod = sql.NullString{String: u.LastLoginMethod().String(), Valid: true}
+	}
+
 	return row
 }
 
 // ToDomainUser converts a database row to a domain User.
-// Note: This creates a reconstituted user without linked identities/wallets.
-// Those are loaded separately and attached.
-func (r *UserRow) ToDomainUser(linkedIdentities []domain.LinkedIdentity, wallets []domain.WalletAddress) (*domain.User, error) {
+// Requires linked DIDs, identities, and wallets to be loaded separately.
+func (r *UserRow) ToDomainUser(
+	linkedDIDs domain.LinkedDIDs,
+	linkedIdentities []domain.LinkedIdentity,
+	wallets []domain.WalletAddress,
+) (*domain.User, error) {
 	primaryDID, err := did.Parse(r.DID)
 	if err != nil {
 		return nil, err
@@ -58,18 +66,130 @@ func (r *UserRow) ToDomainUser(linkedIdentities []domain.LinkedIdentity, wallets
 		lastLoginAt = r.LastLoginAt.Time
 	}
 
+	var lastLoginMethod domain.AuthMethod
+	if r.LastLoginMethod.Valid {
+		lastLoginMethod = domain.AuthMethod(r.LastLoginMethod.String)
+	}
+
 	return domain.Reconstitute(
 		r.ID,
 		0, // version - loaded separately if using event sourcing
 		primaryDID,
+		linkedDIDs,
 		domain.UserStatus(r.Status),
 		linkedIdentities,
 		wallets,
 		r.CreatedAt,
 		r.UpdatedAt,
 		lastLoginAt,
-		"", // lastLoginMethod - could be stored separately
+		lastLoginMethod,
 	), nil
+}
+
+// ============================================================================
+// Linked DID Row
+// ============================================================================
+
+// LinkedDIDRow represents a linked DID database row.
+type LinkedDIDRow struct {
+	ID         string         `db:"id"`
+	UserID     string         `db:"user_id"`
+	DID        string         `db:"did"`
+	Source     string         `db:"source"`
+	IsPrimary  bool           `db:"is_primary"`
+	Label      sql.NullString `db:"label"`
+	Metadata   []byte         `db:"metadata"`
+	LinkedAt   time.Time      `db:"linked_at"`
+	LastUsedAt sql.NullTime   `db:"last_used_at"`
+}
+
+// ToLinkedDIDRow converts a domain LinkedDID to a database row.
+func ToLinkedDIDRow(userID string, ld domain.LinkedDID) (*LinkedDIDRow, error) {
+	row := &LinkedDIDRow{
+		ID:        ld.ID,
+		UserID:    userID,
+		DID:       ld.DID.String(),
+		Source:    ld.Source.String(),
+		IsPrimary: ld.IsPrimary,
+		LinkedAt:  ld.LinkedAt,
+	}
+
+	if ld.Label != "" {
+		row.Label = sql.NullString{String: ld.Label, Valid: true}
+	}
+
+	if len(ld.Metadata) > 0 {
+		data, err := json.Marshal(ld.Metadata)
+		if err != nil {
+			return nil, err
+		}
+		row.Metadata = data
+	}
+
+	if ld.LastUsedAt != nil {
+		row.LastUsedAt = sql.NullTime{Time: *ld.LastUsedAt, Valid: true}
+	}
+
+	return row, nil
+}
+
+// ToDomainLinkedDID converts a database row to a domain LinkedDID.
+func (r *LinkedDIDRow) ToDomainLinkedDID() (domain.LinkedDID, error) {
+	parsedDID, err := did.Parse(r.DID)
+	if err != nil {
+		return domain.LinkedDID{}, err
+	}
+
+	ld := domain.LinkedDID{
+		ID:        r.ID,
+		DID:       parsedDID,
+		Source:    domain.DIDSource(r.Source),
+		IsPrimary: r.IsPrimary,
+		LinkedAt:  r.LinkedAt,
+	}
+
+	if r.Label.Valid {
+		ld.Label = r.Label.String
+	}
+
+	if len(r.Metadata) > 0 {
+		var metadata map[string]string
+		if err := json.Unmarshal(r.Metadata, &metadata); err == nil {
+			ld.Metadata = metadata
+		}
+	}
+
+	if r.LastUsedAt.Valid {
+		ld.LastUsedAt = &r.LastUsedAt.Time
+	}
+
+	return ld, nil
+}
+
+// ToLinkedDIDRows converts a slice of domain LinkedDIDs to database rows.
+func ToLinkedDIDRows(userID string, linkedDIDs domain.LinkedDIDs) ([]*LinkedDIDRow, error) {
+	rows := make([]*LinkedDIDRow, 0, len(linkedDIDs))
+	for _, ld := range linkedDIDs {
+		row, err := ToLinkedDIDRow(userID, ld)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+// ToDomainLinkedDIDs converts a slice of database rows to domain LinkedDIDs.
+func ToDomainLinkedDIDs(rows []*LinkedDIDRow) (domain.LinkedDIDs, error) {
+	linkedDIDs := make(domain.LinkedDIDs, 0, len(rows))
+	for _, row := range rows {
+		ld, err := row.ToDomainLinkedDID()
+		if err != nil {
+			return nil, err
+		}
+		linkedDIDs = append(linkedDIDs, ld)
+	}
+	return linkedDIDs, nil
 }
 
 // ============================================================================

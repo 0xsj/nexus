@@ -8,6 +8,7 @@ import (
 	"github.com/0xsj/nexus/platform/internal/identity/application/query"
 	"github.com/0xsj/nexus/platform/internal/identity/domain"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/challenge"
+	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/did"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/email"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/magiclink"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/persistence/postgres"
@@ -107,11 +108,12 @@ type Module struct {
 	connectionRepo domain.ConnectionRepository
 
 	// Services
-	tokenService      domain.TokenService
-	challengeService  domain.ChallengeService
-	signatureVerifier domain.SignatureVerifier
-	magicLinkService  domain.MagicLinkService
-	emailService      domain.EmailService
+	tokenService         domain.TokenService
+	challengeService     domain.ChallengeService
+	signatureVerifier    domain.SignatureVerifier
+	magicLinkService     domain.MagicLinkService
+	emailService         domain.EmailService
+	didGenerationService domain.DIDGenerationService
 
 	// CQRS
 	commandBus *cqrs.InMemoryCommandBus
@@ -179,6 +181,9 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	// Create ID generator
 	idGenerator := id.NewGenerator()
 
+	// Create DID generation service
+	didGenerationService := did.NewGenerationService(idGenerator)
+
 	// Create magic link service
 	magicLinkConfig := magiclink.DefaultConfig()
 	magicLinkService := magiclink.NewService(magicLinkConfig, idGenerator)
@@ -206,15 +211,16 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 
 	// Register command handlers
 	cmdDeps := command.HandlerDependencies{
-		UserRepo:          userRepo,
-		SessionRepo:       sessionRepo,
-		APIKeyRepo:        apiKeyRepo,
-		ChallengeService:  challengeService,
-		TokenService:      tokenService,
-		SignatureVerifier: signatureVerifier,
-		MagicLinkService:  magicLinkService,
-		EmailService:      emailService,
-		IDGenerator:       idGenerator,
+		UserRepo:             userRepo,
+		SessionRepo:          sessionRepo,
+		APIKeyRepo:           apiKeyRepo,
+		ChallengeService:     challengeService,
+		TokenService:         tokenService,
+		SignatureVerifier:    signatureVerifier,
+		MagicLinkService:     magicLinkService,
+		EmailService:         emailService,
+		DIDGenerationService: didGenerationService,
+		IDGenerator:          idGenerator,
 	}
 
 	if err := command.RegisterHandlers(commandBus, cmdDeps); err != nil {
@@ -248,19 +254,20 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	)
 
 	return &Module{
-		router:            router,
-		userRepo:          userRepo,
-		sessionRepo:       sessionRepo,
-		apiKeyRepo:        apiKeyRepo,
-		connectionRepo:    connectionRepo,
-		tokenService:      tokenService,
-		challengeService:  challengeService,
-		signatureVerifier: signatureVerifier,
-		magicLinkService:  magicLinkService,
-		emailService:      emailService,
-		commandBus:        commandBus,
-		queryBus:          queryBus,
-		logger:            logger,
+		router:               router,
+		userRepo:             userRepo,
+		sessionRepo:          sessionRepo,
+		apiKeyRepo:           apiKeyRepo,
+		connectionRepo:       connectionRepo,
+		tokenService:         tokenService,
+		challengeService:     challengeService,
+		signatureVerifier:    signatureVerifier,
+		magicLinkService:     magicLinkService,
+		emailService:         emailService,
+		didGenerationService: didGenerationService,
+		commandBus:           commandBus,
+		queryBus:             queryBus,
+		logger:               logger,
 	}, nil
 }
 
@@ -316,6 +323,11 @@ func (m *Module) MagicLinkService() domain.MagicLinkService {
 // EmailService returns the email service.
 func (m *Module) EmailService() domain.EmailService {
 	return m.emailService
+}
+
+// DIDGenerationService returns the DID generation service.
+func (m *Module) DIDGenerationService() domain.DIDGenerationService {
+	return m.didGenerationService
 }
 
 // ============================================================================
