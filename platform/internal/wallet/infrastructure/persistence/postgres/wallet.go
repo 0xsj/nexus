@@ -7,6 +7,7 @@ import (
 
 	"github.com/0xsj/nexus/platform/internal/wallet/domain"
 	"github.com/0xsj/nexus/platform/pkg/database/postgres"
+	pkgerrors "github.com/0xsj/nexus/platform/pkg/errors"
 )
 
 // ============================================================================
@@ -15,12 +16,12 @@ import (
 
 // WalletRepository implements domain.WalletRepository using PostgreSQL.
 type WalletRepository struct {
-	db postgres.DB
+	adapter *postgres.BaseAdapter
 }
 
 // NewWalletRepository creates a new PostgreSQL wallet repository.
-func NewWalletRepository(db postgres.DB) *WalletRepository {
-	return &WalletRepository{db: db}
+func NewWalletRepository(adapter *postgres.BaseAdapter) *WalletRepository {
+	return &WalletRepository{adapter: adapter}
 }
 
 // ============================================================================
@@ -36,12 +37,12 @@ func (r *WalletRepository) Save(ctx context.Context, wallet *domain.Wallet) erro
 	// Check if wallet exists
 	exists, err := r.existsByID(ctx, wallet.ID())
 	if err != nil {
-		return err
+		return pkgerrors.Wrap(err, op)
 	}
 
 	if exists {
 		// Update existing wallet
-		_, err = r.db.ExecContext(ctx, queryUpdateWallet,
+		_, err = r.adapter.Exec(ctx, queryUpdateWallet,
 			row.Label,
 			row.IsPrimary,
 			row.Status,
@@ -51,7 +52,7 @@ func (r *WalletRepository) Save(ctx context.Context, wallet *domain.Wallet) erro
 		)
 	} else {
 		// Insert new wallet
-		_, err = r.db.ExecContext(ctx, queryInsertWallet,
+		_, err = r.adapter.Exec(ctx, queryInsertWallet,
 			row.ID,
 			row.UserID,
 			row.Address,
@@ -70,7 +71,7 @@ func (r *WalletRepository) Save(ctx context.Context, wallet *domain.Wallet) erro
 	}
 
 	if err != nil {
-		return domain.ErrWalletNotFound(op, wallet.ID())
+		return pkgerrors.Wrap(err, op)
 	}
 
 	return nil
@@ -80,18 +81,30 @@ func (r *WalletRepository) Save(ctx context.Context, wallet *domain.Wallet) erro
 func (r *WalletRepository) Delete(ctx context.Context, id string) error {
 	const op = "WalletRepository.Delete"
 
-	result, err := r.db.ExecContext(ctx, queryDeleteWallet, id)
+	result, err := r.adapter.Exec(ctx, queryDeleteWallet, id)
 	if err != nil {
-		return domain.ErrWalletNotFound(op, id)
+		return pkgerrors.Wrap(err, op)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return pkgerrors.Wrap(err, op)
 	}
 
 	if rowsAffected == 0 {
 		return domain.ErrWalletNotFound(op, id)
+	}
+
+	return nil
+}
+
+// DeleteByUserID deletes all wallets for a user.
+func (r *WalletRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	const op = "WalletRepository.DeleteByUserID"
+
+	_, err := r.adapter.Exec(ctx, queryDeleteWalletsByUserID, userID)
+	if err != nil {
+		return pkgerrors.Wrap(err, op)
 	}
 
 	return nil
@@ -105,117 +118,83 @@ func (r *WalletRepository) Delete(ctx context.Context, id string) error {
 func (r *WalletRepository) FindByID(ctx context.Context, id string) (*domain.Wallet, error) {
 	const op = "WalletRepository.FindByID"
 
-	var row walletRow
-	err := r.db.QueryRowContext(ctx, querySelectWalletByID, id).Scan(
-		&row.ID,
-		&row.UserID,
-		&row.Address,
-		&row.AddressNormalized,
-		&row.ChainID,
-		&row.ChainFamily,
-		&row.DID,
-		&row.Label,
-		&row.IsPrimary,
-		&row.Status,
-		&row.VerifiedAt,
-		&row.CreatedAt,
-		&row.UpdatedAt,
-		&row.LastUsedAt,
-	)
+	row := r.adapter.Executor().QueryRow(ctx, querySelectWalletByID, id)
 
+	walletRow, err := scanWalletRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrWalletNotFound(op, id)
 		}
-		return nil, err
+		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	return row.toDomain()
+	return walletRow.toDomain()
 }
 
 // FindByAddress finds a wallet by address and chain.
 func (r *WalletRepository) FindByAddress(ctx context.Context, address domain.Address) (*domain.Wallet, error) {
 	const op = "WalletRepository.FindByAddress"
 
-	var row walletRow
-	err := r.db.QueryRowContext(ctx, querySelectWalletByAddress,
+	row := r.adapter.Executor().QueryRow(ctx, querySelectWalletByAddress,
 		address.Normalized(),
 		address.ChainID().String(),
-	).Scan(
-		&row.ID,
-		&row.UserID,
-		&row.Address,
-		&row.AddressNormalized,
-		&row.ChainID,
-		&row.ChainFamily,
-		&row.DID,
-		&row.Label,
-		&row.IsPrimary,
-		&row.Status,
-		&row.VerifiedAt,
-		&row.CreatedAt,
-		&row.UpdatedAt,
-		&row.LastUsedAt,
 	)
 
+	walletRow, err := scanWalletRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrWalletNotFound(op, address.Normalized())
 		}
-		return nil, err
+		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	return row.toDomain()
+	return walletRow.toDomain()
+}
+
+// FindByAddressString finds a wallet by address string and chain ID.
+func (r *WalletRepository) FindByAddressString(ctx context.Context, address string, chainID domain.ChainID) (*domain.Wallet, error) {
+	const op = "WalletRepository.FindByAddressString"
+
+	row := r.adapter.Executor().QueryRow(ctx, querySelectWalletByAddress,
+		address,
+		chainID.String(),
+	)
+
+	walletRow, err := scanWalletRow(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrWalletNotFound(op, address)
+		}
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	return walletRow.toDomain()
 }
 
 // FindByDID finds a wallet by DID.
 func (r *WalletRepository) FindByDID(ctx context.Context, didString string) (*domain.Wallet, error) {
 	const op = "WalletRepository.FindByDID"
 
-	var row walletRow
-	err := r.db.QueryRowContext(ctx, querySelectWalletByDID, didString).Scan(
-		&row.ID,
-		&row.UserID,
-		&row.Address,
-		&row.AddressNormalized,
-		&row.ChainID,
-		&row.ChainFamily,
-		&row.DID,
-		&row.Label,
-		&row.IsPrimary,
-		&row.Status,
-		&row.VerifiedAt,
-		&row.CreatedAt,
-		&row.UpdatedAt,
-		&row.LastUsedAt,
-	)
+	row := r.adapter.Executor().QueryRow(ctx, querySelectWalletByDID, didString)
 
+	walletRow, err := scanWalletRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrWalletNotFound(op, didString)
 		}
-		return nil, err
+		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	return row.toDomain()
+	return walletRow.toDomain()
 }
 
 // FindByUserID finds all wallets for a user.
 func (r *WalletRepository) FindByUserID(ctx context.Context, userID string) ([]*domain.Wallet, error) {
-	rows, err := r.db.QueryContext(ctx, querySelectWalletsByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	const op = "WalletRepository.FindByUserID"
 
-	return r.scanWallets(rows)
-}
-
-// FindByUserIDWithStatus finds wallets for a user with a specific status.
-func (r *WalletRepository) FindByUserIDWithStatus(ctx context.Context, userID string, status domain.WalletStatus) ([]*domain.Wallet, error) {
-	rows, err := r.db.QueryContext(ctx, querySelectWalletsByUserIDWithStatus, userID, status.String())
+	rows, err := r.adapter.Select(ctx, querySelectWalletsByUserID, userID)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.Wrap(err, op)
 	}
 	defer rows.Close()
 
@@ -226,140 +205,108 @@ func (r *WalletRepository) FindByUserIDWithStatus(ctx context.Context, userID st
 func (r *WalletRepository) FindPrimaryByUserID(ctx context.Context, userID string) (*domain.Wallet, error) {
 	const op = "WalletRepository.FindPrimaryByUserID"
 
-	var row walletRow
-	err := r.db.QueryRowContext(ctx, querySelectPrimaryWalletByUserID, userID).Scan(
-		&row.ID,
-		&row.UserID,
-		&row.Address,
-		&row.AddressNormalized,
-		&row.ChainID,
-		&row.ChainFamily,
-		&row.DID,
-		&row.Label,
-		&row.IsPrimary,
-		&row.Status,
-		&row.VerifiedAt,
-		&row.CreatedAt,
-		&row.UpdatedAt,
-		&row.LastUsedAt,
-	)
+	row := r.adapter.Executor().QueryRow(ctx, querySelectPrimaryWalletByUserID, userID)
 
+	walletRow, err := scanWalletRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrWalletNotFound(op, "primary wallet for user "+userID)
 		}
-		return nil, err
+		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	return row.toDomain()
+	return walletRow.toDomain()
 }
 
 // ============================================================================
 // Existence Checks
 // ============================================================================
 
-// ExistsByID checks if a wallet exists by ID.
-func (r *WalletRepository) ExistsByID(ctx context.Context, id string) (bool, error) {
-	return r.existsByID(ctx, id)
+// ExistsByAddress checks if a wallet exists by address.
+func (r *WalletRepository) ExistsByAddress(ctx context.Context, address domain.Address) (bool, error) {
+	const op = "WalletRepository.ExistsByAddress"
+
+	var exists bool
+	row := r.adapter.Executor().QueryRow(ctx, queryExistsWalletByAddress,
+		address.Normalized(),
+		address.ChainID().String(),
+	)
+	if err := row.Scan(&exists); err != nil {
+		return false, pkgerrors.Wrap(err, op)
+	}
+	return exists, nil
+}
+
+// ExistsByAddressString checks if a wallet exists by address string.
+func (r *WalletRepository) ExistsByAddressString(ctx context.Context, address string, chainID domain.ChainID) (bool, error) {
+	const op = "WalletRepository.ExistsByAddressString"
+
+	var exists bool
+	row := r.adapter.Executor().QueryRow(ctx, queryExistsWalletByAddress,
+		address,
+		chainID.String(),
+	)
+	if err := row.Scan(&exists); err != nil {
+		return false, pkgerrors.Wrap(err, op)
+	}
+	return exists, nil
 }
 
 func (r *WalletRepository) existsByID(ctx context.Context, id string) (bool, error) {
+	const op = "WalletRepository.existsByID"
+
 	var exists bool
-	err := r.db.QueryRowContext(ctx, queryExistsWalletByID, id).Scan(&exists)
-	if err != nil {
-		return false, err
+	row := r.adapter.Executor().QueryRow(ctx, queryExistsWalletByID, id)
+	if err := row.Scan(&exists); err != nil {
+		return false, pkgerrors.Wrap(err, op)
 	}
 	return exists, nil
-}
-
-// ExistsByAddress checks if a wallet exists by address.
-func (r *WalletRepository) ExistsByAddress(ctx context.Context, address domain.Address) (bool, error) {
-	var exists bool
-	err := r.db.QueryRowContext(ctx, queryExistsWalletByAddress,
-		address.Normalized(),
-		address.ChainID().String(),
-	).Scan(&exists)
-	if err != nil {
-		return false, err
-	}
-	return exists, nil
-}
-
-// ExistsByDID checks if a wallet exists by DID.
-func (r *WalletRepository) ExistsByDID(ctx context.Context, didString string) (bool, error) {
-	var exists bool
-	err := r.db.QueryRowContext(ctx, queryExistsWalletByDID, didString).Scan(&exists)
-	if err != nil {
-		return false, err
-	}
-	return exists, nil
-}
-
-// ============================================================================
-// Count Operations
-// ============================================================================
-
-// CountByUserID counts wallets for a user.
-func (r *WalletRepository) CountByUserID(ctx context.Context, userID string) (int, error) {
-	var count int
-	err := r.db.QueryRowContext(ctx, queryCountWalletsByUserID, userID).Scan(&count)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-// CountActiveByUserID counts active wallets for a user.
-func (r *WalletRepository) CountActiveByUserID(ctx context.Context, userID string) (int, error) {
-	var count int
-	err := r.db.QueryRowContext(ctx, queryCountActiveWalletsByUserID, userID).Scan(&count)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-// ============================================================================
-// Primary Wallet Operations
-// ============================================================================
-
-// UnsetPrimaryForUser unsets the primary wallet for a user.
-func (r *WalletRepository) UnsetPrimaryForUser(ctx context.Context, userID string) error {
-	_, err := r.db.ExecContext(ctx, queryUnsetPrimaryForUser, userID)
-	return err
 }
 
 // ============================================================================
 // Helper Methods
 // ============================================================================
 
+// scanWalletRow scans a single wallet row.
+func scanWalletRow(row interface{ Scan(...interface{}) error }) (*walletRow, error) {
+	var r walletRow
+	err := row.Scan(
+		&r.ID,
+		&r.UserID,
+		&r.Address,
+		&r.AddressNormalized,
+		&r.ChainID,
+		&r.ChainFamily,
+		&r.DID,
+		&r.Label,
+		&r.IsPrimary,
+		&r.Status,
+		&r.VerifiedAt,
+		&r.CreatedAt,
+		&r.UpdatedAt,
+		&r.LastUsedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 // scanWallets scans multiple wallet rows.
-func (r *WalletRepository) scanWallets(rows *sql.Rows) ([]*domain.Wallet, error) {
+func (r *WalletRepository) scanWallets(rows interface {
+	Next() bool
+	Scan(...interface{}) error
+	Err() error
+}) ([]*domain.Wallet, error) {
 	var wallets []*domain.Wallet
 
 	for rows.Next() {
-		var row walletRow
-		err := rows.Scan(
-			&row.ID,
-			&row.UserID,
-			&row.Address,
-			&row.AddressNormalized,
-			&row.ChainID,
-			&row.ChainFamily,
-			&row.DID,
-			&row.Label,
-			&row.IsPrimary,
-			&row.Status,
-			&row.VerifiedAt,
-			&row.CreatedAt,
-			&row.UpdatedAt,
-			&row.LastUsedAt,
-		)
+		walletRow, err := scanWalletRow(rows)
 		if err != nil {
 			return nil, err
 		}
 
-		wallet, err := row.toDomain()
+		wallet, err := walletRow.toDomain()
 		if err != nil {
 			return nil, err
 		}

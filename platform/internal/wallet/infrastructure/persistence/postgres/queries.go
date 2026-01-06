@@ -28,6 +28,12 @@ const (
 	queryDeleteWallet = `
 		DELETE FROM wallets WHERE id = $1`
 
+	// Add to queries.go
+
+	// Delete wallets by user ID
+	queryDeleteWalletsByUserID = `
+	DELETE FROM wallets WHERE user_id = $1`
+
 	// Select wallet by ID
 	querySelectWalletByID = `
 		SELECT
