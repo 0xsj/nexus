@@ -7,37 +7,43 @@ package postgres
 const (
 	// Insert
 	queryUserInsert = `
-		INSERT INTO users (id, did, status, display_name, avatar_url, bio, created_at, updated_at, last_login_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+		INSERT INTO users (id, did, status, display_name, avatar_url, bio, last_login_method, created_at, updated_at, last_login_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
 	// Update
 	queryUserUpdate = `
 		UPDATE users
-		SET did = $2, status = $3, display_name = $4, avatar_url = $5, bio = $6, updated_at = $7, last_login_at = $8
+		SET did = $2, status = $3, display_name = $4, avatar_url = $5, bio = $6, last_login_method = $7, updated_at = $8, last_login_at = $9
 		WHERE id = $1`
 
 	// Select
 	queryUserByID = `
-		SELECT id, did, status, display_name, avatar_url, bio, created_at, updated_at, last_login_at
+		SELECT id, did, status, display_name, avatar_url, bio, last_login_method, created_at, updated_at, last_login_at
 		FROM users
 		WHERE id = $1`
 
 	queryUserByDID = `
-		SELECT id, did, status, display_name, avatar_url, bio, created_at, updated_at, last_login_at
+		SELECT id, did, status, display_name, avatar_url, bio, last_login_method, created_at, updated_at, last_login_at
 		FROM users
 		WHERE did = $1`
 
 	queryUserByEmail = `
-		SELECT u.id, u.did, u.status, u.display_name, u.avatar_url, u.bio, u.created_at, u.updated_at, u.last_login_at
+		SELECT u.id, u.did, u.status, u.display_name, u.avatar_url, u.bio, u.last_login_method, u.created_at, u.updated_at, u.last_login_at
 		FROM users u
 		INNER JOIN user_emails e ON u.id = e.user_id
 		WHERE e.email = $1`
 
 	queryUserByWallet = `
-		SELECT u.id, u.did, u.status, u.display_name, u.avatar_url, u.bio, u.created_at, u.updated_at, u.last_login_at
+		SELECT u.id, u.did, u.status, u.display_name, u.avatar_url, u.bio, u.last_login_method, u.created_at, u.updated_at, u.last_login_at
 		FROM users u
 		INNER JOIN user_wallets w ON u.id = w.user_id
 		WHERE w.address = $1 AND w.chain = $2`
+
+	queryUserByLinkedDID = `
+		SELECT u.id, u.did, u.status, u.display_name, u.avatar_url, u.bio, u.last_login_method, u.created_at, u.updated_at, u.last_login_at
+		FROM users u
+		INNER JOIN user_linked_dids ld ON u.id = ld.user_id
+		WHERE ld.did = $1`
 
 	// Exists
 	queryUserExistsByDID = `
@@ -49,13 +55,16 @@ const (
 	queryUserExistsByWallet = `
 		SELECT EXISTS(SELECT 1 FROM user_wallets WHERE address = $1 AND chain = $2)`
 
+	queryUserExistsByLinkedDID = `
+		SELECT EXISTS(SELECT 1 FROM user_linked_dids WHERE did = $1)`
+
 	// Delete
 	queryUserDelete = `
 		DELETE FROM users WHERE id = $1`
 
 	// List
 	queryUserList = `
-		SELECT id, did, status, display_name, avatar_url, bio, created_at, updated_at, last_login_at
+		SELECT id, did, status, display_name, avatar_url, bio, last_login_method, created_at, updated_at, last_login_at
 		FROM users
 		WHERE ($1::text IS NULL OR status = $1)
 		ORDER BY %s %s
@@ -64,6 +73,43 @@ const (
 	queryUserCount = `
 		SELECT COUNT(*) FROM users
 		WHERE ($1::text IS NULL OR status = $1)`
+)
+
+// ============================================================================
+// User Linked DID Queries
+// ============================================================================
+
+const (
+	queryLinkedDIDInsert = `
+		INSERT INTO user_linked_dids (id, user_id, did, source, is_primary, label, metadata, linked_at, last_used_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+
+	queryLinkedDIDUpdate = `
+		UPDATE user_linked_dids
+		SET is_primary = $2, label = $3, metadata = $4, last_used_at = $5
+		WHERE id = $1`
+
+	queryLinkedDIDDelete = `
+		DELETE FROM user_linked_dids WHERE id = $1`
+
+	queryLinkedDIDDeleteByUserID = `
+		DELETE FROM user_linked_dids WHERE user_id = $1`
+
+	queryLinkedDIDsByUserID = `
+		SELECT id, user_id, did, source, is_primary, label, metadata, linked_at, last_used_at
+		FROM user_linked_dids
+		WHERE user_id = $1
+		ORDER BY is_primary DESC, linked_at ASC`
+
+	queryLinkedDIDByID = `
+		SELECT id, user_id, did, source, is_primary, label, metadata, linked_at, last_used_at
+		FROM user_linked_dids
+		WHERE id = $1`
+
+	queryLinkedDIDByDID = `
+		SELECT id, user_id, did, source, is_primary, label, metadata, linked_at, last_used_at
+		FROM user_linked_dids
+		WHERE did = $1`
 )
 
 // ============================================================================

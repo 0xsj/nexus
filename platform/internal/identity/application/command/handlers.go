@@ -116,9 +116,10 @@ func (h *RegisterWithWalletHandler) Handle(ctx context.Context, cmd *RegisterWit
 
 	// Create user
 	userID := h.idGenerator.Generate().String()
+	linkedDIDID := h.idGenerator.Generate().String()
 	wallet := domain.NewWalletAddress(cmd.Address, cmd.Chain)
 
-	user, err := domain.NewUserFromWallet(userID, wallet)
+	user, err := domain.NewUserFromWallet(userID, linkedDIDID, wallet)
 	if err != nil {
 		return nil, err
 	}
@@ -598,6 +599,7 @@ type LinkWalletHandler struct {
 	userRepo          domain.UserRepository
 	challengeService  domain.ChallengeService
 	signatureVerifier domain.SignatureVerifier
+	idGenerator       id.Generator
 }
 
 // NewLinkWalletHandler creates a new LinkWalletHandler.
@@ -605,11 +607,13 @@ func NewLinkWalletHandler(
 	userRepo domain.UserRepository,
 	challengeService domain.ChallengeService,
 	signatureVerifier domain.SignatureVerifier,
+	idGenerator id.Generator,
 ) *LinkWalletHandler {
 	return &LinkWalletHandler{
 		userRepo:          userRepo,
 		challengeService:  challengeService,
 		signatureVerifier: signatureVerifier,
+		idGenerator:       idGenerator,
 	}
 }
 
@@ -650,8 +654,11 @@ func (h *LinkWalletHandler) Handle(ctx context.Context, cmd *LinkWallet) (*cqrs.
 		return nil, err
 	}
 
-	// Link wallet
-	if err := user.LinkWallet(cmd.Address, cmd.Chain); err != nil {
+	// Generate linkedDIDID for the wallet DID
+	linkedDIDID := h.idGenerator.Generate().String()
+
+	// Link wallet (with linkedDIDID to create the wallet DID)
+	if err := user.LinkWallet(cmd.Address, cmd.Chain, linkedDIDID); err != nil {
 		return nil, err
 	}
 
@@ -817,12 +824,13 @@ func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicL
 
 // VerifyMagicLinkHandler handles VerifyMagicLink commands.
 type VerifyMagicLinkHandler struct {
-	userRepo         domain.UserRepository
-	sessionRepo      domain.SessionRepository
-	magicLinkService domain.MagicLinkService
-	tokenService     domain.TokenService
-	emailService     domain.EmailService
-	idGenerator      id.Generator
+	userRepo             domain.UserRepository
+	sessionRepo          domain.SessionRepository
+	magicLinkService     domain.MagicLinkService
+	tokenService         domain.TokenService
+	emailService         domain.EmailService
+	didGenerationService domain.DIDGenerationService
+	idGenerator          id.Generator
 }
 
 // NewVerifyMagicLinkHandler creates a new VerifyMagicLinkHandler.
@@ -832,15 +840,17 @@ func NewVerifyMagicLinkHandler(
 	magicLinkService domain.MagicLinkService,
 	tokenService domain.TokenService,
 	emailService domain.EmailService,
+	didGenerationService domain.DIDGenerationService,
 	idGenerator id.Generator,
 ) *VerifyMagicLinkHandler {
 	return &VerifyMagicLinkHandler{
-		userRepo:         userRepo,
-		sessionRepo:      sessionRepo,
-		magicLinkService: magicLinkService,
-		tokenService:     tokenService,
-		emailService:     emailService,
-		idGenerator:      idGenerator,
+		userRepo:             userRepo,
+		sessionRepo:          sessionRepo,
+		magicLinkService:     magicLinkService,
+		tokenService:         tokenService,
+		emailService:         emailService,
+		didGenerationService: didGenerationService,
+		idGenerator:          idGenerator,
 	}
 }
 
@@ -957,8 +967,15 @@ func (h *VerifyMagicLinkHandler) Handle(ctx context.Context, cmd *VerifyMagicLin
 // createUserFromEmail creates a new user from an email address.
 func (h *VerifyMagicLinkHandler) createUserFromEmail(ctx context.Context, email string) (*domain.User, error) {
 	userID := h.idGenerator.Generate().String()
+	linkedDIDID := h.idGenerator.Generate().String()
 
-	user, err := domain.NewUserFromEmail(userID, email)
+	// Generate a custodial DID for this email user
+	custodialDID, _, err := h.didGenerationService.GenerateCustodialDID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := domain.NewUserFromEmail(userID, linkedDIDID, email, custodialDID)
 	if err != nil {
 		return nil, err
 	}
@@ -976,15 +993,16 @@ func (h *VerifyMagicLinkHandler) createUserFromEmail(ctx context.Context, email 
 
 // HandlerDependencies contains all dependencies needed for command handlers.
 type HandlerDependencies struct {
-	UserRepo          domain.UserRepository
-	SessionRepo       domain.SessionRepository
-	APIKeyRepo        domain.APIKeyRepository
-	ChallengeService  domain.ChallengeService
-	TokenService      domain.TokenService
-	SignatureVerifier domain.SignatureVerifier
-	MagicLinkService  domain.MagicLinkService
-	EmailService      domain.EmailService
-	IDGenerator       id.Generator
+	UserRepo             domain.UserRepository
+	SessionRepo          domain.SessionRepository
+	APIKeyRepo           domain.APIKeyRepository
+	ChallengeService     domain.ChallengeService
+	TokenService         domain.TokenService
+	SignatureVerifier    domain.SignatureVerifier
+	MagicLinkService     domain.MagicLinkService
+	EmailService         domain.EmailService
+	DIDGenerationService domain.DIDGenerationService
+	IDGenerator          id.Generator
 }
 
 // RegisterHandlers registers all identity command handlers with the command bus.
@@ -1020,6 +1038,7 @@ func RegisterHandlers(bus *cqrs.InMemoryCommandBus, deps HandlerDependencies) er
 			deps.UserRepo,
 			deps.ChallengeService,
 			deps.SignatureVerifier,
+			deps.IDGenerator,
 		),
 		TypeUnlinkWallet: NewUnlinkWalletHandler(deps.UserRepo),
 		TypeRequestMagicLink: NewRequestMagicLinkHandler(
@@ -1033,6 +1052,7 @@ func RegisterHandlers(bus *cqrs.InMemoryCommandBus, deps HandlerDependencies) er
 			deps.MagicLinkService,
 			deps.TokenService,
 			deps.EmailService,
+			deps.DIDGenerationService,
 			deps.IDGenerator,
 		),
 	}

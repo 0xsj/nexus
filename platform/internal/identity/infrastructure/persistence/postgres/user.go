@@ -47,7 +47,7 @@ func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 	row := ToUserRow(user)
 
 	if exists {
-		return r.update(ctx, row)
+		return r.update(ctx, row, user)
 	}
 
 	return r.insert(ctx, row, user)
@@ -64,12 +64,20 @@ func (r *UserRepository) insert(ctx context.Context, row *UserRow, user *domain.
 		row.DisplayName,
 		row.AvatarURL,
 		row.Bio,
+		row.LastLoginMethod,
 		row.CreatedAt,
 		row.UpdatedAt,
 		row.LastLoginAt,
 	)
 	if err != nil {
 		return errors.Wrap(err, op)
+	}
+
+	// Insert linked DIDs
+	for _, linkedDID := range user.LinkedDIDs() {
+		if err := r.insertLinkedDID(ctx, user.ID(), linkedDID); err != nil {
+			return errors.Wrap(err, op)
+		}
 	}
 
 	// Insert wallets
@@ -91,7 +99,7 @@ func (r *UserRepository) insert(ctx context.Context, row *UserRow, user *domain.
 	return nil
 }
 
-func (r *UserRepository) update(ctx context.Context, row *UserRow) error {
+func (r *UserRepository) update(ctx context.Context, row *UserRow, user *domain.User) error {
 	const op = "postgres.UserRepository.update"
 
 	_, err := r.adapter.Exec(ctx, queryUserUpdate,
@@ -101,9 +109,121 @@ func (r *UserRepository) update(ctx context.Context, row *UserRow) error {
 		row.DisplayName,
 		row.AvatarURL,
 		row.Bio,
+		row.LastLoginMethod,
 		row.UpdatedAt,
 		row.LastLoginAt,
 	)
+	if err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	// Sync linked DIDs (delete removed, insert new, update existing)
+	if err := r.syncLinkedDIDs(ctx, user.ID(), user.LinkedDIDs()); err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	return nil
+}
+
+func (r *UserRepository) insertLinkedDID(ctx context.Context, userID string, linkedDID domain.LinkedDID) error {
+	const op = "postgres.UserRepository.insertLinkedDID"
+
+	row, err := ToLinkedDIDRow(userID, linkedDID)
+	if err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	_, err = r.adapter.Exec(ctx, queryLinkedDIDInsert,
+		row.ID,
+		row.UserID,
+		row.DID,
+		row.Source,
+		row.IsPrimary,
+		row.Label,
+		row.Metadata,
+		row.LinkedAt,
+		row.LastUsedAt,
+	)
+	if err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	return nil
+}
+
+func (r *UserRepository) syncLinkedDIDs(ctx context.Context, userID string, linkedDIDs domain.LinkedDIDs) error {
+	const op = "postgres.UserRepository.syncLinkedDIDs"
+
+	// Load existing linked DIDs
+	existingRows, err := r.loadLinkedDIDRows(ctx, userID)
+	if err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	// Build maps for comparison
+	existingMap := make(map[string]*LinkedDIDRow)
+	for _, row := range existingRows {
+		existingMap[row.ID] = row
+	}
+
+	newMap := make(map[string]domain.LinkedDID)
+	for _, ld := range linkedDIDs {
+		newMap[ld.ID] = ld
+	}
+
+	// Delete removed DIDs
+	for id := range existingMap {
+		if _, exists := newMap[id]; !exists {
+			if err := r.deleteLinkedDID(ctx, id); err != nil {
+				return errors.Wrap(err, op)
+			}
+		}
+	}
+
+	// Insert or update DIDs
+	for _, ld := range linkedDIDs {
+		if _, exists := existingMap[ld.ID]; exists {
+			// Update existing
+			if err := r.updateLinkedDID(ctx, userID, ld); err != nil {
+				return errors.Wrap(err, op)
+			}
+		} else {
+			// Insert new
+			if err := r.insertLinkedDID(ctx, userID, ld); err != nil {
+				return errors.Wrap(err, op)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *UserRepository) updateLinkedDID(ctx context.Context, userID string, linkedDID domain.LinkedDID) error {
+	const op = "postgres.UserRepository.updateLinkedDID"
+
+	row, err := ToLinkedDIDRow(userID, linkedDID)
+	if err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	_, err = r.adapter.Exec(ctx, queryLinkedDIDUpdate,
+		row.ID,
+		row.IsPrimary,
+		row.Label,
+		row.Metadata,
+		row.LastUsedAt,
+	)
+	if err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	return nil
+}
+
+func (r *UserRepository) deleteLinkedDID(ctx context.Context, id string) error {
+	const op = "postgres.UserRepository.deleteLinkedDID"
+
+	_, err := r.adapter.Exec(ctx, queryLinkedDIDDelete, id)
 	if err != nil {
 		return errors.Wrap(err, op)
 	}
@@ -199,6 +319,21 @@ func (r *UserRepository) FindByDID(ctx context.Context, did string) (*domain.Use
 	return r.hydrateUser(ctx, row)
 }
 
+// FindByLinkedDID finds a user by any linked DID (not just primary).
+func (r *UserRepository) FindByLinkedDID(ctx context.Context, did string) (*domain.User, error) {
+	const op = "postgres.UserRepository.FindByLinkedDID"
+
+	row, err := r.scanUser(ctx, queryUserByLinkedDID, did)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrUserNotFound(op, did)
+		}
+		return nil, errors.Wrap(err, op)
+	}
+
+	return r.hydrateUser(ctx, row)
+}
+
 // FindByWallet finds a user by a linked wallet address.
 func (r *UserRepository) FindByWallet(ctx context.Context, address string, chain domain.Chain) (*domain.User, error) {
 	const op = "postgres.UserRepository.FindByWallet"
@@ -239,6 +374,19 @@ func (r *UserRepository) ExistsByDID(ctx context.Context, did string) (bool, err
 
 	var exists bool
 	row := r.adapter.Executor().QueryRow(ctx, queryUserExistsByDID, did)
+	if err := row.Scan(&exists); err != nil {
+		return false, errors.Wrap(err, op)
+	}
+
+	return exists, nil
+}
+
+// ExistsByLinkedDID checks if a user with the given linked DID exists.
+func (r *UserRepository) ExistsByLinkedDID(ctx context.Context, did string) (bool, error) {
+	const op = "postgres.UserRepository.ExistsByLinkedDID"
+
+	var exists bool
+	row := r.adapter.Executor().QueryRow(ctx, queryUserExistsByLinkedDID, did)
 	if err := row.Scan(&exists); err != nil {
 		return false, errors.Wrap(err, op)
 	}
@@ -292,6 +440,11 @@ func (r *UserRepository) existsByID(ctx context.Context, id string) (bool, error
 func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	const op = "postgres.UserRepository.Delete"
 
+	// Delete linked DIDs first (foreign key constraint)
+	if err := r.deleteLinkedDIDsByUserID(ctx, id); err != nil {
+		return errors.Wrap(err, op)
+	}
+
 	result, err := r.adapter.Exec(ctx, queryUserDelete, id)
 	if err != nil {
 		return errors.Wrap(err, op)
@@ -304,6 +457,17 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 
 	if rowsAffected == 0 {
 		return domain.ErrUserNotFound(op, id)
+	}
+
+	return nil
+}
+
+func (r *UserRepository) deleteLinkedDIDsByUserID(ctx context.Context, userID string) error {
+	const op = "postgres.UserRepository.deleteLinkedDIDsByUserID"
+
+	_, err := r.adapter.Exec(ctx, queryLinkedDIDDeleteByUserID, userID)
+	if err != nil {
+		return errors.Wrap(err, op)
 	}
 
 	return nil
@@ -381,6 +545,7 @@ func (r *UserRepository) scanUser(ctx context.Context, query string, args ...int
 		&userRow.DisplayName,
 		&userRow.AvatarURL,
 		&userRow.Bio,
+		&userRow.LastLoginMethod,
 		&userRow.CreatedAt,
 		&userRow.UpdatedAt,
 		&userRow.LastLoginAt,
@@ -401,6 +566,7 @@ func scanUserRow(rows interface{ Scan(...interface{}) error }) (*UserRow, error)
 		&userRow.DisplayName,
 		&userRow.AvatarURL,
 		&userRow.Bio,
+		&userRow.LastLoginMethod,
 		&userRow.CreatedAt,
 		&userRow.UpdatedAt,
 		&userRow.LastLoginAt,
@@ -414,6 +580,12 @@ func scanUserRow(rows interface{ Scan(...interface{}) error }) (*UserRow, error)
 
 func (r *UserRepository) hydrateUser(ctx context.Context, row *UserRow) (*domain.User, error) {
 	const op = "postgres.UserRepository.hydrateUser"
+
+	// Load linked DIDs
+	linkedDIDs, err := r.loadLinkedDIDs(ctx, row.ID)
+	if err != nil {
+		return nil, errors.Wrap(err, op)
+	}
 
 	// Load wallets
 	wallets, err := r.loadWallets(ctx, row.ID)
@@ -432,7 +604,46 @@ func (r *UserRepository) hydrateUser(ctx context.Context, row *UserRow) (*domain
 		identities = append(identities, domain.NewWalletIdentity(wallet.Address, wallet.Chain))
 	}
 
-	return row.ToDomainUser(identities, wallets)
+	return row.ToDomainUser(linkedDIDs, identities, wallets)
+}
+
+func (r *UserRepository) loadLinkedDIDs(ctx context.Context, userID string) (domain.LinkedDIDs, error) {
+	rows, err := r.loadLinkedDIDRows(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return ToDomainLinkedDIDs(rows)
+}
+
+func (r *UserRepository) loadLinkedDIDRows(ctx context.Context, userID string) ([]*LinkedDIDRow, error) {
+	rows, err := r.adapter.Select(ctx, queryLinkedDIDsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var linkedDIDRows []*LinkedDIDRow
+	for rows.Next() {
+		var row LinkedDIDRow
+		err := rows.Scan(
+			&row.ID,
+			&row.UserID,
+			&row.DID,
+			&row.Source,
+			&row.IsPrimary,
+			&row.Label,
+			&row.Metadata,
+			&row.LinkedAt,
+			&row.LastUsedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		linkedDIDRows = append(linkedDIDRows, &row)
+	}
+
+	return linkedDIDRows, rows.Err()
 }
 
 func (r *UserRepository) loadWallets(ctx context.Context, userID string) ([]domain.WalletAddress, error) {
