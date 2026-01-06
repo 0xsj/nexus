@@ -77,7 +77,7 @@ func DefaultModuleConfig() ModuleConfig {
 
 // Module is the wallet module that provides all wallet functionality.
 type Module struct {
-	router chi.Router
+	routes *httpv1.Routes
 
 	// Repositories
 	walletRepo    domain.WalletRepository
@@ -177,14 +177,15 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 		return nil, err
 	}
 
-	// Create HTTP router
-	router := httpv1.NewRouter(httpv1.RouterConfig{
+	// Create HTTP routes
+	routerCfg := httpv1.RouterConfig{
 		CommandBus:       commandBus,
 		QueryBus:         queryBus,
 		ChallengeService: challengeService,
 		AuthMiddleware:   cfg.AuthMiddleware,
 		Logger:           logger,
-	})
+	}
+	routes := httpv1.NewRoutes(routerCfg)
 
 	logger.Info("wallet module initialized",
 		log.String("storage", "PostgreSQL"),
@@ -193,7 +194,7 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	)
 
 	return &Module{
-		router:            router,
+		routes:            routes,
 		walletRepo:        walletRepo,
 		challengeRepo:     challengeRepo,
 		challengeService:  challengeService,
@@ -208,13 +209,29 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 }
 
 // ============================================================================
-// Accessors
+// Route Accessors
 // ============================================================================
 
-// Routes returns the HTTP routes for mounting.
-func (m *Module) Routes() chi.Router {
-	return m.router
+// Routes returns the HTTP routes container for mounting.
+func (m *Module) Routes() *httpv1.Routes {
+	return m.routes
 }
+
+// PublicRoutes returns the public wallet routes.
+// Mount at: /api/v1/wallet
+func (m *Module) PublicRoutes() chi.Router {
+	return m.routes.Public
+}
+
+// ProtectedRoutes returns the protected wallet routes.
+// Mount at: /api/v1/wallets
+func (m *Module) ProtectedRoutes() chi.Router {
+	return m.routes.Protected
+}
+
+// ============================================================================
+// Service Accessors
+// ============================================================================
 
 // CommandBus returns the command bus for direct access.
 func (m *Module) CommandBus() cqrs.CommandBus {

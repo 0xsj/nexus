@@ -11,7 +11,7 @@ import (
 )
 
 // ============================================================================
-// Router
+// Router Configuration
 // ============================================================================
 
 // RouterConfig contains configuration for the router.
@@ -19,70 +19,94 @@ type RouterConfig struct {
 	CommandBus       cqrs.CommandBus
 	QueryBus         cqrs.QueryBus
 	ChallengeService domain.ChallengeService
-	AuthMiddleware   func(next http.Handler) http.Handler
+	AuthMiddleware   func(http.Handler) http.Handler
 	Logger           log.Logger
 }
 
-// NewRouter creates a new chi router with all wallet routes.
-func NewRouter(cfg RouterConfig) chi.Router {
+// ============================================================================
+// Routers
+// ============================================================================
+
+// NewPublicRouter creates routes for public wallet endpoints (no auth required).
+// Mount at: /api/v1/wallet
+func NewPublicRouter(cfg RouterConfig) chi.Router {
 	r := chi.NewRouter()
 
-	// Create handler
 	handler := NewHandler(cfg.CommandBus, cfg.QueryBus, cfg.ChallengeService, cfg.Logger)
 
-	// Public routes (no auth required)
-	r.Group(func(r chi.Router) {
-		// Challenge endpoints
-		r.Post("/wallet/challenge", handler.CreateChallenge)
-		r.Post("/wallet/challenge/verify", handler.VerifyChallenge)
+	// Challenge endpoints
+	r.Post("/challenge", handler.CreateChallenge)
+	r.Post("/challenge/verify", handler.VerifyChallenge)
 
-		// Public verification
-		r.Post("/wallet/verify", handler.VerifySignature)
+	// Public verification
+	r.Post("/verify", handler.VerifySignature)
 
-		// Wallet existence check
-		r.Get("/wallet/exists", handler.CheckWalletExists)
+	// Wallet existence check
+	r.Get("/exists", handler.CheckWalletExists)
 
-		// Supported chains
-		r.Get("/wallet/chains", handler.GetSupportedChains)
-	})
+	// Supported chains
+	r.Get("/chains", handler.GetSupportedChains)
 
-	// Protected routes (auth required)
-	r.Group(func(r chi.Router) {
-		if cfg.AuthMiddleware != nil {
-			r.Use(cfg.AuthMiddleware)
-		}
+	return r
+}
 
-		// Wallet list and stats
-		r.Get("/wallets", handler.ListWallets)
-		r.Get("/wallets/stats", handler.GetWalletStats)
-		r.Get("/wallets/primary", handler.GetPrimaryWallet)
+// NewProtectedRouter creates routes for protected wallet endpoints (auth required).
+// Mount at: /api/v1/wallets
+func NewProtectedRouter(cfg RouterConfig) chi.Router {
+	r := chi.NewRouter()
 
-		// Link wallet
-		r.Post("/wallets/link", handler.LinkWallet)
+	handler := NewHandler(cfg.CommandBus, cfg.QueryBus, cfg.ChallengeService, cfg.Logger)
 
-		// Wallet by address lookup
-		r.Get("/wallets/address/{address}", handler.GetWalletByAddress)
+	// Apply auth middleware
+	if cfg.AuthMiddleware != nil {
+		r.Use(cfg.AuthMiddleware)
+	}
 
-		// Individual wallet operations
-		r.Get("/wallets/{id}", handler.GetWallet)
-		r.Patch("/wallets/{id}", handler.UpdateWallet)
-		r.Delete("/wallets/{id}", handler.DeleteWallet)
+	// Wallet list and stats
+	r.Get("/", handler.ListWallets)
+	r.Get("/stats", handler.GetWalletStats)
+	r.Get("/primary", handler.GetPrimaryWallet)
+
+	// Link wallet
+	r.Post("/link", handler.LinkWallet)
+
+	// Wallet by address lookup
+	r.Get("/address/{address}", handler.GetWalletByAddress)
+
+	// Individual wallet operations
+	r.Route("/{id}", func(r chi.Router) {
+		r.Get("/", handler.GetWallet)
+		r.Patch("/", handler.UpdateWallet)
+		r.Delete("/", handler.DeleteWallet)
 
 		// Primary wallet
-		r.Patch("/wallets/{id}/primary", handler.SetPrimaryWallet)
+		r.Patch("/primary", handler.SetPrimaryWallet)
 
 		// Status changes
-		r.Post("/wallets/{id}/activate", handler.ActivateWallet)
-		r.Post("/wallets/{id}/deactivate", handler.DeactivateWallet)
+		r.Post("/activate", handler.ActivateWallet)
+		r.Post("/deactivate", handler.DeactivateWallet)
 
 		// Re-verification
-		r.Post("/wallets/{id}/verify", handler.ReverifyWallet)
+		r.Post("/verify", handler.ReverifyWallet)
 	})
 
 	return r
 }
 
-// MountRouter mounts the wallet router under a path prefix.
-func MountRouter(parent chi.Router, prefix string, cfg RouterConfig) {
-	parent.Mount(prefix, NewRouter(cfg))
+// ============================================================================
+// Module Routes Container
+// ============================================================================
+
+// Routes contains all wallet routers for mounting.
+type Routes struct {
+	Public    chi.Router // Mount at /api/v1/wallet
+	Protected chi.Router // Mount at /api/v1/wallets
+}
+
+// NewRoutes creates all wallet routes.
+func NewRoutes(cfg RouterConfig) *Routes {
+	return &Routes{
+		Public:    NewPublicRouter(cfg),
+		Protected: NewProtectedRouter(cfg),
+	}
 }

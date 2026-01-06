@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xsj/nexus/platform/internal/credential"
 	"github.com/0xsj/nexus/platform/internal/identity"
+	"github.com/0xsj/nexus/platform/internal/wallet"
 	"github.com/0xsj/nexus/platform/pkg/config"
 	"github.com/0xsj/nexus/platform/pkg/database"
 	"github.com/0xsj/nexus/platform/pkg/database/postgres"
@@ -36,10 +37,8 @@ func main() {
 		WithComponent("api-server").
 		Build()
 
-	// Get logger
 	logger := obs.Logger()
 
-	// Start observability
 	ctx := context.Background()
 	if err := obs.Start(ctx); err != nil {
 		logger.Fatal("failed to start observability", log.Err(err))
@@ -49,8 +48,6 @@ func main() {
 	checker := health.NewChecker().
 		WithVersion(version).
 		WithDefaultTimeout(5 * time.Second)
-
-	// Register health checks
 	checker.Register("self", health.AlwaysUp())
 
 	// Initialize database
@@ -74,9 +71,7 @@ func main() {
 		}
 		defer db.Close()
 
-		// Register database health check
 		checker.Register("postgres", postgresHealthCheck(db))
-
 		logger.Info("connected to PostgreSQL",
 			log.String("host", dbConfig.Host),
 			log.Int("port", dbConfig.Port),
@@ -86,44 +81,63 @@ func main() {
 		logger.Info("running without database")
 	}
 
-	// Initialize credential module
-	credentialConfig := credential.ModuleConfig{
+	// ========================================================================
+	// Initialize Modules
+	// ========================================================================
+
+	// Credential module
+	credentialModule, err := credential.NewModuleWithConfig(logger, credential.ModuleConfig{
 		EnableSigning: true,
 		Database:      db,
-	}
-
-	credentialModule, err := credential.NewModuleWithConfig(logger, credentialConfig)
+	})
 	if err != nil {
 		logger.Fatal("failed to initialize credential module", log.Err(err))
 	}
 
-	// Initialize identity module (requires database)
+	// Identity module (requires database)
 	var identityModule *identity.Module
 	if db != nil {
-		identityConfig := identity.ModuleConfig{
+		identityModule, err = identity.NewModuleWithConfig(logger, identity.ModuleConfig{
 			Database:      db,
-			Domain:        config.GetEnv("AUTH_DOMAIN", "proof.io"),
-			URI:           config.GetEnv("AUTH_URI", "https://proof.io"),
-			TokenIssuer:   config.GetEnv("TOKEN_ISSUER", "https://proof.io"),
-			TokenAudience: []string{config.GetEnv("TOKEN_AUDIENCE", "https://proof.io")},
-		}
-
-		identityModule, err = identity.NewModuleWithConfig(logger, identityConfig)
+			Domain:        config.GetEnv("AUTH_DOMAIN", "nexus.io"),
+			URI:           config.GetEnv("AUTH_URI", "https://nexus.io"),
+			TokenIssuer:   config.GetEnv("TOKEN_ISSUER", "https://nexus.io"),
+			TokenAudience: []string{config.GetEnv("TOKEN_AUDIENCE", "https://nexus.io")},
+		})
 		if err != nil {
 			logger.Fatal("failed to initialize identity module", log.Err(err))
 		}
 	}
 
-	// Create health handler
-	healthHandler := health.NewHandler(checker)
+	// Wallet module (requires database)
+	var walletModule *wallet.Module
+	if db != nil {
+		var authMiddleware func(http.Handler) http.Handler
+		if identityModule != nil {
+			authMiddleware = createAuthMiddleware(identityModule, logger)
+		}
 
-	// Get port from environment
-	port := config.GetEnvInt("PORT", 8090)
+		walletModule, err = wallet.NewModuleWithConfig(logger, wallet.ModuleConfig{
+			Database:       db,
+			Domain:         config.GetEnv("AUTH_DOMAIN", "nexus.io"),
+			URI:            config.GetEnv("AUTH_URI", "https://nexus.io"),
+			ChallengeTTL:   config.GetEnvInt("WALLET_CHALLENGE_TTL", 600),
+			NonceTTL:       config.GetEnvInt("WALLET_NONCE_TTL", 600),
+			AuthMiddleware: authMiddleware,
+		})
+		if err != nil {
+			logger.Fatal("failed to initialize wallet module", log.Err(err))
+		}
+		defer walletModule.Stop()
+	}
 
-	// Create router
+	// ========================================================================
+	// Create Router
+	// ========================================================================
+
 	router := chi.NewRouter()
 
-	// Apply global middleware
+	// Global middleware
 	router.Use(
 		middleware.RequestID(),
 		middleware.Recovery(),
@@ -133,27 +147,42 @@ func main() {
 	)
 
 	// Health routes
+	healthHandler := health.NewHandler(checker)
 	router.Get("/health", healthHandler.Health)
 	router.Get("/healthz", healthHandler.Liveness)
 	router.Get("/readyz", healthHandler.Readiness)
 	router.Get("/startupz", healthHandler.Startup)
 
-	// API routes
-	router.Route("/api", func(r chi.Router) {
-		r.Route("/v1", func(r chi.Router) {
-			r.Get("/", handleRoot(logger))
+	// ========================================================================
+	// Mount API Routes
+	// ========================================================================
 
-			// Mount credential routes
-			r.Mount("/credentials", credentialModule.Routes())
+	router.Route("/api/v1", func(r chi.Router) {
+		// Root info
+		r.Get("/", handleRoot(logger))
 
-			// Mount identity routes (if database available)
-			if identityModule != nil {
-				r.Mount("/", identityModule.Routes())
-			}
-		})
+		// Credentials: /api/v1/credentials/*
+		r.Mount("/credentials", credentialModule.Routes())
+
+		// Identity: /api/v1/auth/*, /api/v1/users/*, /api/v1/sessions/*, etc.
+		if identityModule != nil {
+			mountIdentityRoutes(r, identityModule)
+		}
+
+		// Wallet public: /api/v1/wallet/*
+		// Wallet protected: /api/v1/wallets/*
+		if walletModule != nil {
+			r.Mount("/wallet", walletModule.PublicRoutes())
+			r.Mount("/wallets", walletModule.ProtectedRoutes())
+		}
 	})
 
-	// Create server config
+	// ========================================================================
+	// Start Server
+	// ========================================================================
+
+	port := config.GetEnvInt("PORT", 8090)
+
 	serverConfig := pkghttp.ServerConfig{
 		Port:            port,
 		ReadTimeout:     config.GetEnvDuration("READ_TIMEOUT", 15*time.Second),
@@ -163,10 +192,7 @@ func main() {
 		Logger:          logger,
 	}
 
-	// Create server
 	server := pkghttp.NewServer(router, serverConfig)
-
-	// Mark as started
 	checker.MarkStarted()
 
 	storageMode := "none"
@@ -178,17 +204,14 @@ func main() {
 		log.Int("port", port),
 		log.String("version", version),
 		log.String("storage", storageMode),
-		log.String("health", "/health"),
-		log.String("credentials", "/api/v1/credentials"),
-		log.String("auth", "/api/v1/auth"),
 	)
 
-	// Start server with graceful shutdown
+	printRoutes(logger)
+
 	if err := server.ListenAndServe(); err != nil {
 		logger.Error("server error", log.Err(err))
 	}
 
-	// Stop observability
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -197,6 +220,72 @@ func main() {
 	}
 
 	logger.Info("server stopped gracefully")
+}
+
+// ============================================================================
+// Route Mounting Helpers
+// ============================================================================
+
+// mountIdentityRoutes mounts identity module routes at their respective paths.
+// Identity module returns a router with /auth, /users, /sessions, /api-keys, /profiles prefixes.
+func mountIdentityRoutes(r chi.Router, identityModule *identity.Module) {
+	identityRouter := identityModule.Routes()
+
+	// Walk the identity router and mount each route
+	chi.Walk(identityRouter, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		if route == "/" || route == "" {
+			return nil
+		}
+		r.Method(method, route, handler)
+		return nil
+	})
+}
+
+// ============================================================================
+// Auth Middleware
+// ============================================================================
+
+func createAuthMiddleware(identityModule *identity.Module, logger log.Logger) func(http.Handler) http.Handler {
+	tokenService := identityModule.TokenService()
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				response.Unauthorized(w, response.ErrUnauthorized("missing authorization header"))
+				return
+			}
+
+			const bearerPrefix = "Bearer "
+			if len(authHeader) < len(bearerPrefix) || authHeader[:len(bearerPrefix)] != bearerPrefix {
+				response.Unauthorized(w, response.ErrUnauthorized("invalid authorization header format"))
+				return
+			}
+
+			token := authHeader[len(bearerPrefix):]
+
+			claims, err := tokenService.ValidateAccessToken(r.Context(), token)
+			if err != nil {
+				logger.Debug("token validation failed",
+					log.Err(err),
+					log.String("path", r.URL.Path),
+				)
+				response.Unauthorized(w, response.ErrUnauthorized("invalid or expired token"))
+				return
+			}
+
+			ctx := contextWithUserID(r.Context(), claims.UserID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+type contextKey string
+
+const userIDContextKey contextKey = "user_id"
+
+func contextWithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, userIDContextKey, userID)
 }
 
 // ============================================================================
@@ -222,11 +311,9 @@ func buildDatabaseConfig() postgres.Config {
 		WithApplicationName("nexus-api")
 }
 
-// postgresHealthCheck creates a health check for postgres.DB.
 func postgresHealthCheck(db *postgres.DB) health.Check {
 	return func(ctx context.Context) *health.Result {
 		start := time.Now()
-
 		status := db.HealthCheck(ctx)
 		duration := time.Since(start)
 
@@ -252,16 +339,23 @@ func postgresHealthCheck(db *postgres.DB) health.Check {
 
 func handleRoot(logger log.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		requestID := middleware.GetRequestID(r.Context())
-		logger.Debug("root endpoint",
-			log.String("request_id", requestID),
-			log.String("remote_addr", r.RemoteAddr),
-		)
-
 		response.OK(w, map[string]string{
 			"service": "nexus",
 			"status":  "running",
 			"version": version,
 		})
 	}
+}
+
+func printRoutes(logger log.Logger) {
+	logger.Info("routes registered",
+		log.String("health", "/health, /healthz, /readyz, /startupz"),
+		log.String("credentials", "/api/v1/credentials/*"),
+		log.String("auth", "/api/v1/auth/*"),
+		log.String("users", "/api/v1/users/*"),
+		log.String("sessions", "/api/v1/sessions/*"),
+		log.String("api-keys", "/api/v1/api-keys/*"),
+		log.String("wallet-public", "/api/v1/wallet/*"),
+		log.String("wallet-protected", "/api/v1/wallets/*"),
+	)
 }
