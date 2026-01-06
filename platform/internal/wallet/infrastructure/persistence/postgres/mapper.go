@@ -6,6 +6,7 @@ import (
 
 	"github.com/0xsj/nexus/platform/internal/wallet/application/query"
 	"github.com/0xsj/nexus/platform/internal/wallet/domain"
+	"github.com/0xsj/nexus/platform/pkg/did"
 )
 
 // ============================================================================
@@ -40,23 +41,30 @@ func (r *walletRow) toDomain() (*domain.Wallet, error) {
 		domain.ChainFamily(r.ChainFamily),
 	)
 
+	// Parse DID
+	walletDID, err := did.Parse(r.DID)
+	if err != nil {
+		// If DID parsing fails, create empty DID
+		walletDID = did.DID{}
+	}
+
 	// Parse status
 	status := domain.WalletStatus(r.Status)
 
-	// Build wallet using reconstruction
-	wallet := domain.ReconstructWallet(domain.WalletState{
-		ID:         r.ID,
-		UserID:     r.UserID,
-		Address:    address,
-		DID:        r.DID,
-		Label:      r.Label.String,
-		IsPrimary:  r.IsPrimary,
-		Status:     status,
-		VerifiedAt: r.VerifiedAt,
-		CreatedAt:  r.CreatedAt,
-		UpdatedAt:  r.UpdatedAt,
-		LastUsedAt: nullTimeToPtr(r.LastUsedAt),
-	})
+	// Rehydrate wallet from persisted state
+	wallet := domain.RehydrateWallet(
+		r.ID,
+		r.UserID,
+		address,
+		walletDID,
+		nullStringToString(r.Label),
+		r.IsPrimary,
+		status,
+		r.VerifiedAt,
+		nullTimeToPtr(r.LastUsedAt),
+		r.CreatedAt,
+		r.UpdatedAt,
+	)
 
 	return wallet, nil
 }
@@ -77,7 +85,7 @@ func (r *walletRow) toView() *query.WalletView {
 		ChainName:  chainName,
 		Family:     r.ChainFamily,
 		DID:        r.DID,
-		Label:      r.Label.String,
+		Label:      nullStringToString(r.Label),
 		IsPrimary:  r.IsPrimary,
 		Status:     r.Status,
 		VerifiedAt: r.VerifiedAt,
@@ -100,7 +108,7 @@ func (r *walletRow) toSummaryView() query.WalletSummaryView {
 		Address:   r.AddressNormalized,
 		ChainID:   r.ChainID,
 		ChainName: chainName,
-		Label:     r.Label.String,
+		Label:     nullStringToString(r.Label),
 		IsPrimary: r.IsPrimary,
 		Status:    r.Status,
 		CreatedAt: r.CreatedAt,
@@ -115,7 +123,7 @@ func walletToRow(w *domain.Wallet) *walletRow {
 		Address:           w.Address().Raw(),
 		AddressNormalized: w.Address().Normalized(),
 		ChainID:           w.ChainID().String(),
-		ChainFamily:       w.Address().Family().String(),
+		ChainFamily:       w.Family().String(),
 		DID:               w.DIDString(),
 		Label:             stringToNullString(w.Label()),
 		IsPrimary:         w.IsPrimary(),
@@ -133,17 +141,17 @@ func walletToRow(w *domain.Wallet) *walletRow {
 
 // challengeRow represents a challenge row in the database.
 type challengeRow struct {
-	Nonce             string         `db:"nonce"`
-	Message           string         `db:"message"`
-	Address           string         `db:"address"`
-	AddressNormalized string         `db:"address_normalized"`
-	ChainID           string         `db:"chain_id"`
-	Domain            string         `db:"domain"`
-	URI               string         `db:"uri"`
-	IssuedAt          time.Time      `db:"issued_at"`
-	ExpiresAt         time.Time      `db:"expires_at"`
-	Used              bool           `db:"used"`
-	UsedAt            sql.NullTime   `db:"used_at"`
+	Nonce             string       `db:"nonce"`
+	Message           string       `db:"message"`
+	Address           string       `db:"address"`
+	AddressNormalized string       `db:"address_normalized"`
+	ChainID           string       `db:"chain_id"`
+	Domain            string       `db:"domain"`
+	URI               string       `db:"uri"`
+	IssuedAt          time.Time    `db:"issued_at"`
+	ExpiresAt         time.Time    `db:"expires_at"`
+	Used              bool         `db:"used"`
+	UsedAt            sql.NullTime `db:"used_at"`
 }
 
 // toDomain converts a challenge row to a domain challenge.
@@ -240,8 +248,8 @@ func (r *activityRow) toView() query.WalletActivityView {
 	return query.WalletActivityView{
 		WalletID:  r.WalletID,
 		Action:    r.Action,
-		IPAddress: r.IPAddress.String,
-		UserAgent: r.UserAgent.String,
+		IPAddress: nullStringToString(r.IPAddress),
+		UserAgent: nullStringToString(r.UserAgent),
 		Timestamp: r.CreatedAt,
 	}
 }
