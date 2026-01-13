@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/0xsj/nexus/platform/internal/identity/domain"
@@ -749,6 +750,8 @@ func NewRequestMagicLinkHandler(
 
 // Handle handles the RequestMagicLink command.
 func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicLink) (*cqrs.CommandResult, error) {
+	fmt.Printf("[DEBUG] RequestMagicLink: email=%s\n", cmd.Email)
+
 	// Determine purpose based on whether user exists
 	purpose := cmd.Purpose
 	if purpose == "" {
@@ -757,8 +760,9 @@ func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicL
 		if err != nil {
 			if domain.IsUserNotFound(err) {
 				purpose = domain.MagicLinkPurposeRegister
+				fmt.Printf("[DEBUG] User not found, purpose=register\n")
 			} else {
-				// Don't reveal internal errors - still return success
+				fmt.Printf("[DEBUG] FindByEmail error: %v\n", err)
 				return &cqrs.CommandResult{
 					Data: &RequestMagicLinkResult{
 						Success: true,
@@ -768,6 +772,7 @@ func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicL
 			}
 		} else {
 			purpose = domain.MagicLinkPurposeLogin
+			fmt.Printf("[DEBUG] User found, purpose=login\n")
 		}
 	}
 
@@ -782,7 +787,7 @@ func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicL
 		UserAgent: cmd.UserAgent,
 	})
 	if err != nil {
-		// Don't reveal errors - prevents email enumeration
+		fmt.Printf("[DEBUG] CreateToken error: %v\n", err)
 		return &cqrs.CommandResult{
 			Data: &RequestMagicLinkResult{
 				Success: true,
@@ -790,6 +795,8 @@ func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicL
 			},
 		}, nil
 	}
+
+	fmt.Printf("[DEBUG] Token created: %s\n", token.Token())
 
 	// Send magic link email
 	err = h.emailService.SendMagicLink(ctx, domain.SendMagicLinkParams{
@@ -801,7 +808,7 @@ func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicL
 		UserAgent: cmd.UserAgent,
 	})
 	if err != nil {
-		// Log error but don't reveal to user
+		fmt.Printf("[DEBUG] SendMagicLink error: %v\n", err)
 		return &cqrs.CommandResult{
 			Data: &RequestMagicLinkResult{
 				Success: true,
@@ -809,6 +816,8 @@ func (h *RequestMagicLinkHandler) Handle(ctx context.Context, cmd *RequestMagicL
 			},
 		}, nil
 	}
+
+	fmt.Printf("[DEBUG] Email sent successfully\n")
 
 	return &cqrs.CommandResult{
 		Data: &RequestMagicLinkResult{
@@ -966,25 +975,24 @@ func (h *VerifyMagicLinkHandler) Handle(ctx context.Context, cmd *VerifyMagicLin
 
 // createUserFromEmail creates a new user from an email address.
 func (h *VerifyMagicLinkHandler) createUserFromEmail(ctx context.Context, email string) (*domain.User, error) {
-	userID := h.idGenerator.Generate().String()
-	linkedDIDID := h.idGenerator.Generate().String()
+    userID := h.idGenerator.Generate().String()
+    // Don't generate linkedDIDID here - get it from GenerateCustodialDID
 
-	// Generate a custodial DID for this email user
-	custodialDID, _, err := h.didGenerationService.GenerateCustodialDID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
+    custodialDID, linkedDIDID, err := h.didGenerationService.GenerateCustodialDID(ctx, userID)
+    if err != nil {
+        return nil, err
+    }
 
-	user, err := domain.NewUserFromEmail(userID, linkedDIDID, email, custodialDID)
-	if err != nil {
-		return nil, err
-	}
+    user, err := domain.NewUserFromEmail(userID, linkedDIDID, email, custodialDID)
+    if err != nil {
+        return nil, err
+    }
 
-	if err := h.userRepo.Save(ctx, user); err != nil {
-		return nil, err
-	}
+    if err := h.userRepo.Save(ctx, user); err != nil {
+        return nil, err
+    }
 
-	return user, nil
+    return user, nil
 }
 
 // ============================================================================

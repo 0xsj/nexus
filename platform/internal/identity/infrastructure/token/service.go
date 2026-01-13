@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -365,6 +366,97 @@ type RefreshTokenClaims struct {
 
 	// TokenType identifies this as a refresh token.
 	TokenType domain.TokenType `json:"type"`
+}
+
+// MarshalJSON implements json.Marshaler for AccessTokenClaims.
+// This is needed because jwt.Claims has its own MarshalJSON that would
+// otherwise override the embedded struct serialization.
+func (c AccessTokenClaims) MarshalJSON() ([]byte, error) {
+    type Alias AccessTokenClaims
+    
+    // Create a map to hold all claims
+    m := make(map[string]any)
+    
+    // Add standard claims
+    if c.Claims.Issuer != "" {
+        m["iss"] = c.Claims.Issuer
+    }
+    if c.Claims.Subject != "" {
+        m["sub"] = c.Claims.Subject
+    }
+    if len(c.Claims.Audience) > 0 {
+        if len(c.Claims.Audience) == 1 {
+            m["aud"] = c.Claims.Audience[0]
+        } else {
+            m["aud"] = c.Claims.Audience
+        }
+    }
+    if c.Claims.ExpiresAt != nil {
+        m["exp"] = c.Claims.ExpiresAt.Unix()
+    }
+    if c.Claims.NotBefore != nil {
+        m["nbf"] = c.Claims.NotBefore.Unix()
+    }
+    if c.Claims.IssuedAt != nil {
+        m["iat"] = c.Claims.IssuedAt.Unix()
+    }
+    if c.Claims.ID != "" {
+        m["jti"] = c.Claims.ID
+    }
+    
+    // Add custom claims
+    if c.DID != "" {
+        m["did"] = c.DID
+    }
+    if c.SessionID != "" {
+        m["sid"] = c.SessionID
+    }
+    if len(c.Scopes) > 0 {
+        m["scopes"] = c.Scopes
+    }
+    m["type"] = c.TokenType
+    
+    return json.Marshal(m)
+}
+
+// MarshalJSON implements json.Marshaler for RefreshTokenClaims.
+func (c RefreshTokenClaims) MarshalJSON() ([]byte, error) {
+    m := make(map[string]any)
+    
+    // Add standard claims
+    if c.Claims.Issuer != "" {
+        m["iss"] = c.Claims.Issuer
+    }
+    if c.Claims.Subject != "" {
+        m["sub"] = c.Claims.Subject
+    }
+    if len(c.Claims.Audience) > 0 {
+        if len(c.Claims.Audience) == 1 {
+            m["aud"] = c.Claims.Audience[0]
+        } else {
+            m["aud"] = c.Claims.Audience
+        }
+    }
+    if c.Claims.ExpiresAt != nil {
+        m["exp"] = c.Claims.ExpiresAt.Unix()
+    }
+    if c.Claims.NotBefore != nil {
+        m["nbf"] = c.Claims.NotBefore.Unix()
+    }
+    if c.Claims.IssuedAt != nil {
+        m["iat"] = c.Claims.IssuedAt.Unix()
+    }
+    if c.Claims.ID != "" {
+        m["jti"] = c.Claims.ID
+    }
+    
+    // Add custom claims
+    if c.SessionID != "" {
+        m["sid"] = c.SessionID
+    }
+    m["type"] = c.TokenType
+    
+    return json.Marshal(m)
 }
 
 // ============================================================================

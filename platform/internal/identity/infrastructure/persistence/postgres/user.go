@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/0xsj/nexus/platform/internal/identity/domain"
+	"github.com/0xsj/nexus/platform/pkg/database"
 	"github.com/0xsj/nexus/platform/pkg/database/postgres"
 	"github.com/0xsj/nexus/platform/pkg/errors"
 )
@@ -56,6 +57,8 @@ func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 func (r *UserRepository) insert(ctx context.Context, row *UserRow, user *domain.User) error {
 	const op = "postgres.UserRepository.insert"
 
+	fmt.Printf("[DEBUG] insert: userID=%s\n", row.ID)
+
 	// Insert user
 	_, err := r.adapter.Exec(ctx, queryUserInsert,
 		row.ID,
@@ -70,31 +73,43 @@ func (r *UserRepository) insert(ctx context.Context, row *UserRow, user *domain.
 		row.LastLoginAt,
 	)
 	if err != nil {
+		fmt.Printf("[DEBUG] insert user failed: %v\n", err)
 		return errors.Wrap(err, op)
 	}
+	fmt.Printf("[DEBUG] user inserted\n")
 
 	// Insert linked DIDs
+	fmt.Printf("[DEBUG] linkedDIDs count: %d\n", len(user.LinkedDIDs()))
 	for _, linkedDID := range user.LinkedDIDs() {
+		fmt.Printf("[DEBUG] inserting linkedDID: id=%s, did=%s\n", linkedDID.ID, linkedDID.DID.String())
 		if err := r.insertLinkedDID(ctx, user.ID(), linkedDID); err != nil {
+			fmt.Printf("[DEBUG] insert linkedDID failed: %v\n", err)
 			return errors.Wrap(err, op)
 		}
 	}
+	fmt.Printf("[DEBUG] linkedDIDs inserted\n")
 
 	// Insert wallets
+	fmt.Printf("[DEBUG] wallets count: %d\n", len(user.Wallets()))
 	for _, wallet := range user.Wallets() {
 		if err := r.insertWallet(ctx, user.ID(), wallet, false); err != nil {
+			fmt.Printf("[DEBUG] insert wallet failed: %v\n", err)
 			return errors.Wrap(err, op)
 		}
 	}
 
 	// Insert linked emails
+	fmt.Printf("[DEBUG] linkedIdentities count: %d\n", len(user.LinkedIdentities()))
 	for _, identity := range user.LinkedIdentities() {
+		fmt.Printf("[DEBUG] identity: type=%s, value=%s\n", identity.Type, identity.Value)
 		if identity.Type == domain.IdentityTypeEmail {
 			if err := r.insertEmail(ctx, user.ID(), identity); err != nil {
+				fmt.Printf("[DEBUG] insert email failed: %v\n", err)
 				return errors.Wrap(err, op)
 			}
 		}
 	}
+	fmt.Printf("[DEBUG] insert complete\n")
 
 	return nil
 }
@@ -351,17 +366,17 @@ func (r *UserRepository) FindByWallet(ctx context.Context, address string, chain
 
 // FindByEmail finds a user by a linked email.
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
-	const op = "postgres.UserRepository.FindByEmail"
+    const op = "postgres.UserRepository.FindByEmail"
 
-	row, err := r.scanUser(ctx, queryUserByEmail, email)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, domain.ErrUserNotFound(op, email)
-		}
-		return nil, errors.Wrap(err, op)
-	}
+    row, err := r.scanUser(ctx, queryUserByEmail, email)
+    if err != nil {
+        if database.IsNotFound(err) {
+            return nil, domain.ErrUserNotFound(op, email)
+        }
+        return nil, errors.Wrap(err, op)
+    }
 
-	return r.hydrateUser(ctx, row)
+    return r.hydrateUser(ctx, row)
 }
 
 // ============================================================================
