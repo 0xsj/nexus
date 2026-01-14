@@ -366,17 +366,17 @@ func (r *UserRepository) FindByWallet(ctx context.Context, address string, chain
 
 // FindByEmail finds a user by a linked email.
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
-    const op = "postgres.UserRepository.FindByEmail"
+	const op = "postgres.UserRepository.FindByEmail"
 
-    row, err := r.scanUser(ctx, queryUserByEmail, email)
-    if err != nil {
-        if database.IsNotFound(err) {
-            return nil, domain.ErrUserNotFound(op, email)
-        }
-        return nil, errors.Wrap(err, op)
-    }
+	row, err := r.scanUser(ctx, queryUserByEmail, email)
+	if err != nil {
+		if database.IsNotFound(err) {
+			return nil, domain.ErrUserNotFound(op, email)
+		}
+		return nil, errors.Wrap(err, op)
+	}
 
-    return r.hydrateUser(ctx, row)
+	return r.hydrateUser(ctx, row)
 }
 
 // ============================================================================

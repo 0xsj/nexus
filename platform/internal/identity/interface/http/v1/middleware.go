@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -115,12 +116,17 @@ func NewMiddleware(tokenService domain.TokenService, logger log.Logger) *Middlew
 // AuthRequired validates JWT and requires authentication.
 func (m *Middleware) AuthRequired(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("[DEBUG] AuthRequired: path=%s\n", r.URL.Path)
+		fmt.Printf("[DEBUG] Authorization header: %s\n", r.Header.Get("Authorization"))
+
 		ctx, err := m.authenticate(r)
 		if err != nil {
+			fmt.Printf("[DEBUG] Auth failed: %v\n", err)
 			WriteUnauthorized(w, "authentication required")
 			return
 		}
 
+		fmt.Printf("[DEBUG] Auth success\n")
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

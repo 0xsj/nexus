@@ -160,10 +160,9 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 	}
 
 	// Create token service
-	tokenConfig := token.Config{
-		Issuer:   cfg.TokenIssuer,
-		Audience: cfg.TokenAudience,
-	}
+	tokenConfig := token.DefaultConfig()
+	tokenConfig.Issuer = cfg.TokenIssuer
+	tokenConfig.Audience = cfg.TokenAudience
 	tokenService := token.NewService(signer, verifier, tokenConfig)
 
 	// Create challenge service (start with defaults to preserve TTL and nonce length)

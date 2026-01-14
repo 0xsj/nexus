@@ -975,24 +975,24 @@ func (h *VerifyMagicLinkHandler) Handle(ctx context.Context, cmd *VerifyMagicLin
 
 // createUserFromEmail creates a new user from an email address.
 func (h *VerifyMagicLinkHandler) createUserFromEmail(ctx context.Context, email string) (*domain.User, error) {
-    userID := h.idGenerator.Generate().String()
-    // Don't generate linkedDIDID here - get it from GenerateCustodialDID
+	userID := h.idGenerator.Generate().String()
+	// Don't generate linkedDIDID here - get it from GenerateCustodialDID
 
-    custodialDID, linkedDIDID, err := h.didGenerationService.GenerateCustodialDID(ctx, userID)
-    if err != nil {
-        return nil, err
-    }
+	custodialDID, linkedDIDID, err := h.didGenerationService.GenerateCustodialDID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
 
-    user, err := domain.NewUserFromEmail(userID, linkedDIDID, email, custodialDID)
-    if err != nil {
-        return nil, err
-    }
+	user, err := domain.NewUserFromEmail(userID, linkedDIDID, email, custodialDID)
+	if err != nil {
+		return nil, err
+	}
 
-    if err := h.userRepo.Save(ctx, user); err != nil {
-        return nil, err
-    }
+	if err := h.userRepo.Save(ctx, user); err != nil {
+		return nil, err
+	}
 
-    return user, nil
+	return user, nil
 }
 
 // ============================================================================

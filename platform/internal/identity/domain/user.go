@@ -82,29 +82,29 @@ func NewUser(id string, primaryDID did.DID) (*User, error) {
 // NewUserWithCustodialDID creates a new user with a Nexus-generated custodial DID.
 // Used for email/OAuth users who don't have a wallet.
 func NewUserWithCustodialDID(id string, linkedDIDID string, primaryDID did.DID) (*User, error) {
-    user, err := NewUser(id, primaryDID)
-    if err != nil {
-        return nil, err
-    }
+	user, err := NewUser(id, primaryDID)
+	if err != nil {
+		return nil, err
+	}
 
-    // Create the custodial DID for event metadata
-    custodialDID := NewCustodialDID(linkedDIDID, primaryDID, true)
+	// Create the custodial DID for event metadata
+	custodialDID := NewCustodialDID(linkedDIDID, primaryDID, true)
 
-    // DON'T append directly - let ApplyEvent handle it
-    // user.linkedDIDs = append(user.linkedDIDs, custodialDID)  // REMOVE THIS
+	// DON'T append directly - let ApplyEvent handle it
+	// user.linkedDIDs = append(user.linkedDIDs, custodialDID)  // REMOVE THIS
 
-    // Raise DID linked event - ApplyEvent will add to linkedDIDs
-    user.Raise(user, NewDIDLinkedEvent(
-        id,
-        linkedDIDID,
-        primaryDID.String(),
-        DIDSourceCustodial,
-        true,
-        custodialDID.Label,
-        custodialDID.Metadata,
-    ))
+	// Raise DID linked event - ApplyEvent will add to linkedDIDs
+	user.Raise(user, NewDIDLinkedEvent(
+		id,
+		linkedDIDID,
+		primaryDID.String(),
+		DIDSourceCustodial,
+		true,
+		custodialDID.Label,
+		custodialDID.Metadata,
+	))
 
-    return user, nil
+	return user, nil
 }
 
 // NewUserFromWallet creates a new user from a wallet signature.

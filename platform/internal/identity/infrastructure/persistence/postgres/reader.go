@@ -871,7 +871,6 @@ func (r *Reader) IsTokenRevoked(ctx context.Context, tokenID string) (bool, erro
 
 func (r *Reader) scanUserRow(ctx context.Context, query string, args ...interface{}) (*UserRow, error) {
 	row := r.adapter.Executor().QueryRow(ctx, query, args...)
-
 	var userRow UserRow
 	err := row.Scan(
 		&userRow.ID,
@@ -880,6 +879,7 @@ func (r *Reader) scanUserRow(ctx context.Context, query string, args ...interfac
 		&userRow.DisplayName,
 		&userRow.AvatarURL,
 		&userRow.Bio,
+		&userRow.LastLoginMethod, // Add this line
 		&userRow.CreatedAt,
 		&userRow.UpdatedAt,
 		&userRow.LastLoginAt,
@@ -887,10 +887,8 @@ func (r *Reader) scanUserRow(ctx context.Context, query string, args ...interfac
 	if err != nil {
 		return nil, err
 	}
-
 	return &userRow, nil
 }
-
 func (r *Reader) scanSessionRow(ctx context.Context, query string, args ...interface{}) (*SessionRow, error) {
 	row := r.adapter.Executor().QueryRow(ctx, query, args...)
 

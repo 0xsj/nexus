@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -99,18 +100,30 @@ func (s *Service) GenerateAccessToken(ctx context.Context, params domain.AccessT
 
 	// Build claims
 	now := time.Now()
+
+	fmt.Printf("[DEBUG] GenerateAccessToken: now=%v, expiresIn=%v, expiresAt=%v\n",
+		now, expiresIn, now.Add(expiresIn))
+
+	baseClaims := jwt.NewClaims(s.issuer, params.UserID).
+		WithAudience(s.audience...).
+		WithExpiresAt(now.Add(expiresIn)).
+		WithIssuedAt(now).
+		WithNotBefore(now).
+		WithID(tokenID)
+
+	fmt.Printf("[DEBUG] baseClaims: exp=%v, iat=%v, nbf=%v\n",
+		baseClaims.ExpiresAt, baseClaims.IssuedAt, baseClaims.NotBefore)
+
 	claims := AccessTokenClaims{
-		Claims: jwt.NewClaims(s.issuer, params.UserID).
-			WithAudience(s.audience...).
-			WithExpiresAt(now.Add(expiresIn)).
-			WithIssuedAt(now).
-			WithNotBefore(now).
-			WithID(tokenID),
+		Claims:    baseClaims,
 		DID:       params.DID,
 		SessionID: params.SessionID,
 		Scopes:    params.Scopes,
 		TokenType: domain.TokenTypeAccess,
 	}
+
+	fmt.Printf("[DEBUG] AccessTokenClaims.Claims: exp=%v, iat=%v, nbf=%v\n",
+		claims.Claims.ExpiresAt, claims.Claims.IssuedAt, claims.Claims.NotBefore)
 
 	// Build header
 	header := jwt.NewHeader(s.signer.Algorithm().JWAName())
@@ -190,6 +203,9 @@ func (s *Service) ValidateAccessToken(ctx context.Context, tokenString string) (
 	if err := token.ParseClaims(&claims); err != nil {
 		return nil, jwt.ErrInvalidClaims(op, "failed to parse claims")
 	}
+
+	fmt.Printf("[DEBUG] ValidateAccessToken: parsed TokenType=%q, expected=%q\n", claims.TokenType, domain.TokenTypeAccess)
+	fmt.Printf("[DEBUG] ValidateAccessToken: claims=%+v\n", claims)
 
 	// Validate standard claims
 	if err := claims.Claims.Validate(); err != nil {
@@ -372,91 +388,143 @@ type RefreshTokenClaims struct {
 // This is needed because jwt.Claims has its own MarshalJSON that would
 // otherwise override the embedded struct serialization.
 func (c AccessTokenClaims) MarshalJSON() ([]byte, error) {
-    type Alias AccessTokenClaims
-    
-    // Create a map to hold all claims
-    m := make(map[string]any)
-    
-    // Add standard claims
-    if c.Claims.Issuer != "" {
-        m["iss"] = c.Claims.Issuer
-    }
-    if c.Claims.Subject != "" {
-        m["sub"] = c.Claims.Subject
-    }
-    if len(c.Claims.Audience) > 0 {
-        if len(c.Claims.Audience) == 1 {
-            m["aud"] = c.Claims.Audience[0]
-        } else {
-            m["aud"] = c.Claims.Audience
-        }
-    }
-    if c.Claims.ExpiresAt != nil {
-        m["exp"] = c.Claims.ExpiresAt.Unix()
-    }
-    if c.Claims.NotBefore != nil {
-        m["nbf"] = c.Claims.NotBefore.Unix()
-    }
-    if c.Claims.IssuedAt != nil {
-        m["iat"] = c.Claims.IssuedAt.Unix()
-    }
-    if c.Claims.ID != "" {
-        m["jti"] = c.Claims.ID
-    }
-    
-    // Add custom claims
-    if c.DID != "" {
-        m["did"] = c.DID
-    }
-    if c.SessionID != "" {
-        m["sid"] = c.SessionID
-    }
-    if len(c.Scopes) > 0 {
-        m["scopes"] = c.Scopes
-    }
-    m["type"] = c.TokenType
-    
-    return json.Marshal(m)
+	type Alias AccessTokenClaims
+
+	// Create a map to hold all claims
+	m := make(map[string]any)
+
+	// Add standard claims
+	if c.Claims.Issuer != "" {
+		m["iss"] = c.Claims.Issuer
+	}
+	if c.Claims.Subject != "" {
+		m["sub"] = c.Claims.Subject
+	}
+	if len(c.Claims.Audience) > 0 {
+		if len(c.Claims.Audience) == 1 {
+			m["aud"] = c.Claims.Audience[0]
+		} else {
+			m["aud"] = c.Claims.Audience
+		}
+	}
+	if c.Claims.ExpiresAt != nil {
+		m["exp"] = c.Claims.ExpiresAt.Unix()
+	}
+	if c.Claims.NotBefore != nil {
+		m["nbf"] = c.Claims.NotBefore.Unix()
+	}
+	if c.Claims.IssuedAt != nil {
+		m["iat"] = c.Claims.IssuedAt.Unix()
+	}
+	if c.Claims.ID != "" {
+		m["jti"] = c.Claims.ID
+	}
+
+	// Add custom claims
+	if c.DID != "" {
+		m["did"] = c.DID
+	}
+	if c.SessionID != "" {
+		m["sid"] = c.SessionID
+	}
+	if len(c.Scopes) > 0 {
+		m["scopes"] = c.Scopes
+	}
+	m["type"] = c.TokenType
+
+	return json.Marshal(m)
+}
+
+// UnmarshalJSON implements json.Unmarshaler for AccessTokenClaims.
+func (c *AccessTokenClaims) UnmarshalJSON(data []byte) error {
+	// First unmarshal into the embedded Claims
+	if err := json.Unmarshal(data, &c.Claims); err != nil {
+		return err
+	}
+
+	// Then unmarshal the custom fields using an alias to avoid recursion
+	type customFields struct {
+		DID       string           `json:"did"`
+		SessionID string           `json:"sid"`
+		Scopes    []string         `json:"scopes"`
+		TokenType domain.TokenType `json:"type"`
+	}
+
+	var custom customFields
+	if err := json.Unmarshal(data, &custom); err != nil {
+		return err
+	}
+
+	c.DID = custom.DID
+	c.SessionID = custom.SessionID
+	c.Scopes = custom.Scopes
+	c.TokenType = custom.TokenType
+
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler for RefreshTokenClaims.
+func (c *RefreshTokenClaims) UnmarshalJSON(data []byte) error {
+	// First unmarshal into the embedded Claims
+	if err := json.Unmarshal(data, &c.Claims); err != nil {
+		return err
+	}
+
+	// Then unmarshal the custom fields
+	type customFields struct {
+		SessionID string           `json:"sid"`
+		TokenType domain.TokenType `json:"type"`
+	}
+
+	var custom customFields
+	if err := json.Unmarshal(data, &custom); err != nil {
+		return err
+	}
+
+	c.SessionID = custom.SessionID
+	c.TokenType = custom.TokenType
+
+	return nil
 }
 
 // MarshalJSON implements json.Marshaler for RefreshTokenClaims.
 func (c RefreshTokenClaims) MarshalJSON() ([]byte, error) {
-    m := make(map[string]any)
-    
-    // Add standard claims
-    if c.Claims.Issuer != "" {
-        m["iss"] = c.Claims.Issuer
-    }
-    if c.Claims.Subject != "" {
-        m["sub"] = c.Claims.Subject
-    }
-    if len(c.Claims.Audience) > 0 {
-        if len(c.Claims.Audience) == 1 {
-            m["aud"] = c.Claims.Audience[0]
-        } else {
-            m["aud"] = c.Claims.Audience
-        }
-    }
-    if c.Claims.ExpiresAt != nil {
-        m["exp"] = c.Claims.ExpiresAt.Unix()
-    }
-    if c.Claims.NotBefore != nil {
-        m["nbf"] = c.Claims.NotBefore.Unix()
-    }
-    if c.Claims.IssuedAt != nil {
-        m["iat"] = c.Claims.IssuedAt.Unix()
-    }
-    if c.Claims.ID != "" {
-        m["jti"] = c.Claims.ID
-    }
-    
-    // Add custom claims
-    if c.SessionID != "" {
-        m["sid"] = c.SessionID
-    }
-    m["type"] = c.TokenType
-    
-    return json.Marshal(m)
+	m := make(map[string]any)
+
+	// Add standard claims
+	if c.Claims.Issuer != "" {
+		m["iss"] = c.Claims.Issuer
+	}
+	if c.Claims.Subject != "" {
+		m["sub"] = c.Claims.Subject
+	}
+	if len(c.Claims.Audience) > 0 {
+		if len(c.Claims.Audience) == 1 {
+			m["aud"] = c.Claims.Audience[0]
+		} else {
+			m["aud"] = c.Claims.Audience
+		}
+	}
+	if c.Claims.ExpiresAt != nil {
+		m["exp"] = c.Claims.ExpiresAt.Unix()
+	}
+	if c.Claims.NotBefore != nil {
+		m["nbf"] = c.Claims.NotBefore.Unix()
+	}
+	if c.Claims.IssuedAt != nil {
+		m["iat"] = c.Claims.IssuedAt.Unix()
+	}
+	if c.Claims.ID != "" {
+		m["jti"] = c.Claims.ID
+	}
+
+	// Add custom claims
+	if c.SessionID != "" {
+		m["sid"] = c.SessionID
+	}
+	m["type"] = c.TokenType
+
+	return json.Marshal(m)
 }
 
 // ============================================================================

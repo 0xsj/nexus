@@ -226,19 +226,8 @@ func main() {
 // Route Mounting Helpers
 // ============================================================================
 
-// mountIdentityRoutes mounts identity module routes at their respective paths.
-// Identity module returns a router with /auth, /users, /sessions, /api-keys, /profiles prefixes.
 func mountIdentityRoutes(r chi.Router, identityModule *identity.Module) {
-	identityRouter := identityModule.Routes()
-
-	// Walk the identity router and mount each route
-	chi.Walk(identityRouter, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		if route == "/" || route == "" {
-			return nil
-		}
-		r.Method(method, route, handler)
-		return nil
-	})
+	r.Mount("/", identityModule.Routes())
 }
 
 // ============================================================================
