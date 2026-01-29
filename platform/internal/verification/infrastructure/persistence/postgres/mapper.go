@@ -162,20 +162,21 @@ type oauthStateRow struct {
 // toDomain converts an oauthStateRow to a domain.OAuthState.
 func (r *oauthStateRow) toDomain() *domain.OAuthState {
 	return &domain.OAuthState{
-		Value:       r.State,
-		UserID:      r.UserID,
-		Provider:    domain.Provider(r.Provider),
-		RedirectURL: r.RedirectURL.String,
-		CreatedAt:   r.CreatedAt,
-		ExpiresAt:   r.ExpiresAt,
+		Value:          r.State,
+		VerificationID: r.VerificationID,
+		UserID:         r.UserID,
+		Provider:       domain.Provider(r.Provider),
+		RedirectURL:    r.RedirectURL.String,
+		CreatedAt:      r.CreatedAt,
+		ExpiresAt:      r.ExpiresAt,
 	}
 }
 
 // fromOAuthState converts a domain.OAuthState to row parameters.
-func fromOAuthState(verificationID string, s *domain.OAuthState, codeVerifier, nonce *string) *oauthStateRow {
+func fromOAuthState(s *domain.OAuthState, codeVerifier, nonce *string) *oauthStateRow {
 	row := &oauthStateRow{
 		State:          s.Value,
-		VerificationID: verificationID,
+		VerificationID: s.VerificationID,
 		UserID:         s.UserID,
 		Provider:       string(s.Provider),
 		RedirectURL:    toNullString(s.RedirectURL),

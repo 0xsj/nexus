@@ -9,8 +9,12 @@ import (
 
 	"github.com/0xsj/nexus/platform/internal/credential"
 	"github.com/0xsj/nexus/platform/internal/identity"
+	identityquery "github.com/0xsj/nexus/platform/internal/identity/application/query"
+	"github.com/0xsj/nexus/platform/internal/verification"
+	"github.com/0xsj/nexus/platform/internal/verification/infrastructure/oauth"
 	"github.com/0xsj/nexus/platform/internal/wallet"
 	"github.com/0xsj/nexus/platform/pkg/config"
+	"github.com/0xsj/nexus/platform/pkg/cqrs"
 	"github.com/0xsj/nexus/platform/pkg/database"
 	"github.com/0xsj/nexus/platform/pkg/database/postgres"
 	pkghttp "github.com/0xsj/nexus/platform/pkg/http"
@@ -131,6 +135,39 @@ func main() {
 		defer walletModule.Stop()
 	}
 
+	// Verification module (requires database, credential module, and identity module)
+	var verificationModule *verification.Module
+	if db != nil && credentialModule != nil && identityModule != nil {
+		oauthConfig := buildOAuthConfig()
+
+		if len(oauthConfig.EnabledProviders()) > 0 {
+			var authMiddleware func(http.Handler) http.Handler
+			authMiddleware = createAuthMiddleware(identityModule, logger)
+
+			userDIDResolver := NewIdentityUserDIDResolver(identityModule.QueryBus())
+
+			verificationModule, err = verification.NewModuleWithConfig(logger, verification.ModuleConfig{
+				Database:             db,
+				OAuth:                oauthConfig,
+				CredentialCommandBus: credentialModule.CommandBus(),
+				IssuerDID:            credentialModule.IssuerDID().String(),
+				UserDIDResolver:      userDIDResolver,
+				VerificationTTL:      config.GetEnvDuration("VERIFICATION_TTL", 15*time.Minute),
+				AuthMiddleware:       authMiddleware,
+			})
+			if err != nil {
+				logger.Fatal("failed to initialize verification module", log.Err(err))
+			}
+			defer verificationModule.Stop()
+
+			logger.Info("verification module initialized",
+				log.Int("providers", len(oauthConfig.EnabledProviders())),
+			)
+		} else {
+			logger.Warn("verification module disabled: no OAuth providers configured")
+		}
+	}
+
 	// ========================================================================
 	// Create Router
 	// ========================================================================
@@ -175,6 +212,11 @@ func main() {
 			r.Mount("/wallet", walletModule.PublicRoutes())
 			r.Mount("/wallets", walletModule.ProtectedRoutes())
 		}
+
+		// Verifications: /api/v1/verifications/*
+		if verificationModule != nil {
+			r.Mount("/verifications", verificationModule.Routes())
+		}
 	})
 
 	// ========================================================================
@@ -206,7 +248,7 @@ func main() {
 		log.String("storage", storageMode),
 	)
 
-	printRoutes(logger)
+	printRoutes(logger, verificationModule != nil)
 
 	if err := server.ListenAndServe(); err != nil {
 		logger.Error("server error", log.Err(err))
@@ -263,18 +305,85 @@ func createAuthMiddleware(identityModule *identity.Module, logger log.Logger) fu
 				return
 			}
 
-			ctx := contextWithUserID(r.Context(), claims.UserID)
+			// Use the shared log context helper
+			ctx := log.ContextWithUserID(r.Context(), claims.UserID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-type contextKey string
+// ============================================================================
+// OAuth Configuration
+// ============================================================================
 
-const userIDContextKey contextKey = "user_id"
+func buildOAuthConfig() oauth.Config {
+	cfg := oauth.DefaultConfig()
 
-func contextWithUserID(ctx context.Context, userID string) context.Context {
-	return context.WithValue(ctx, userIDContextKey, userID)
+	cfg.CallbackBaseURL = config.GetEnv("OAUTH_CALLBACK_BASE_URL", "http://localhost:8090")
+
+	// GitHub
+	cfg.GitHub.Enabled = config.GetEnv("GITHUB_CLIENT_ID", "") != ""
+	cfg.GitHub.ClientID = config.GetEnv("GITHUB_CLIENT_ID", "")
+	cfg.GitHub.ClientSecret = config.GetEnv("GITHUB_CLIENT_SECRET", "")
+
+	// LinkedIn
+	cfg.LinkedIn.Enabled = config.GetEnv("LINKEDIN_CLIENT_ID", "") != ""
+	cfg.LinkedIn.ClientID = config.GetEnv("LINKEDIN_CLIENT_ID", "")
+	cfg.LinkedIn.ClientSecret = config.GetEnv("LINKEDIN_CLIENT_SECRET", "")
+
+	return cfg
+}
+
+// ============================================================================
+// User DID Resolver
+// ============================================================================
+
+// IdentityUserDIDResolver implements verification.domain.UserDIDResolver
+// by querying the identity module.
+type IdentityUserDIDResolver struct {
+	queryBus cqrs.QueryBus
+}
+
+// NewIdentityUserDIDResolver creates a new resolver.
+func NewIdentityUserDIDResolver(queryBus cqrs.QueryBus) *IdentityUserDIDResolver {
+	return &IdentityUserDIDResolver{queryBus: queryBus}
+}
+
+// ResolvePrimaryDID resolves the user's primary DID.
+func (r *IdentityUserDIDResolver) ResolvePrimaryDID(ctx context.Context, userID string) (string, error) {
+	result, err := r.queryBus.Dispatch(ctx, &identityquery.GetUser{UserID: userID})
+	if err != nil {
+		return "", err
+	}
+
+	userView, ok := result.(*identityquery.UserView)
+	if !ok || userView == nil {
+		return "", &UserDIDNotFoundError{UserID: userID}
+	}
+
+	if userView.PrimaryDID == "" {
+		return "", &UserDIDNotFoundError{UserID: userID}
+	}
+
+	return userView.PrimaryDID, nil
+}
+
+// ResolveOrCreateDID resolves or creates a DID for a user.
+func (r *IdentityUserDIDResolver) ResolveOrCreateDID(ctx context.Context, userID string) (string, error) {
+	did, err := r.ResolvePrimaryDID(ctx, userID)
+	if err == nil {
+		return did, nil
+	}
+	return "", &UserDIDNotFoundError{UserID: userID}
+}
+
+// UserDIDNotFoundError indicates the user's DID could not be resolved.
+type UserDIDNotFoundError struct {
+	UserID string
+}
+
+func (e *UserDIDNotFoundError) Error() string {
+	return "could not resolve DID for user: " + e.UserID
 }
 
 // ============================================================================
@@ -336,8 +445,8 @@ func handleRoot(logger log.Logger) http.HandlerFunc {
 	}
 }
 
-func printRoutes(logger log.Logger) {
-	logger.Info("routes registered",
+func printRoutes(logger log.Logger, verificationEnabled bool) {
+	fields := []log.Field{
 		log.String("health", "/health, /healthz, /readyz, /startupz"),
 		log.String("credentials", "/api/v1/credentials/*"),
 		log.String("auth", "/api/v1/auth/*"),
@@ -346,5 +455,11 @@ func printRoutes(logger log.Logger) {
 		log.String("api-keys", "/api/v1/api-keys/*"),
 		log.String("wallet-public", "/api/v1/wallet/*"),
 		log.String("wallet-protected", "/api/v1/wallets/*"),
-	)
+	}
+
+	if verificationEnabled {
+		fields = append(fields, log.String("verifications", "/api/v1/verifications/*"))
+	}
+
+	logger.Info("routes registered", fields...)
 }

@@ -260,6 +260,9 @@ type OAuthState struct {
 	// Value is the random state string.
 	Value string
 
+	// VerificationID is the ID of the verification this state belongs to.
+	VerificationID string
+
 	// UserID is the user initiating the verification.
 	UserID string
 
@@ -280,10 +283,11 @@ type OAuthState struct {
 }
 
 // NewOAuthState creates a new OAuth state.
-func NewOAuthState(value, userID string, provider Provider, credentialType CredentialType, redirectURL string, ttl time.Duration) OAuthState {
+func NewOAuthState(value, verificationID, userID string, provider Provider, credentialType CredentialType, redirectURL string, ttl time.Duration) OAuthState {
 	now := time.Now()
 	return OAuthState{
 		Value:          value,
+		VerificationID: verificationID,
 		UserID:         userID,
 		Provider:       provider,
 		CredentialType: credentialType,

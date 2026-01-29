@@ -32,7 +32,7 @@ func NewOAuthStateRepository(db *pgadapter.DB) *OAuthStateRepository {
 func (r *OAuthStateRepository) Save(ctx context.Context, state *domain.OAuthState) error {
 	_, err := r.adapter.Exec(ctx, queryInsertOAuthState,
 		state.Value,
-		"", // verification_id - will be updated when verification is created
+		state.VerificationID, // Now uses the verification ID from the state
 		state.UserID,
 		string(state.Provider),
 		nil, // code_verifier - for PKCE (optional)

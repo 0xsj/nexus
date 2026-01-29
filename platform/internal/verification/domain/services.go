@@ -174,7 +174,8 @@ type GenerateStateParams struct {
 	Provider       Provider
 	CredentialType CredentialType
 	RedirectURL    string
-	TTL            int64 // seconds
+	TTL            int64  // seconds
+	VerificationID string // Required - the verification this state belongs to
 }
 
 // ============================================================================

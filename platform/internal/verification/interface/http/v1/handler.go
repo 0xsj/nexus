@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/0xsj/nexus/platform/internal/verification/application/command"
@@ -13,22 +12,6 @@ import (
 	"github.com/0xsj/nexus/platform/pkg/id"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
-
-// ============================================================================
-// Context Keys
-// ============================================================================
-
-type contextKey string
-
-const (
-	contextKeyUserID contextKey = "user_id"
-)
-
-// UserIDFromContext extracts the user ID from context.
-func UserIDFromContext(ctx context.Context) (string, bool) {
-	userID, ok := ctx.Value(contextKeyUserID).(string)
-	return userID, ok && userID != ""
-}
 
 // ============================================================================
 // Handler
@@ -95,8 +78,8 @@ func (h *Handler) ListVerifications(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get user ID from context (set by auth middleware)
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
+	userID := log.UserIDFromContext(ctx)
+	if userID == "" {
 		WriteError(w, domain.ErrVerificationNotFound("ListVerifications", "user not authenticated"))
 		return
 	}
@@ -168,8 +151,8 @@ func (h *Handler) GetProviderConnections(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 
 	// Get user ID from context
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
+	userID := log.UserIDFromContext(ctx)
+	if userID == "" {
 		WriteError(w, domain.ErrVerificationNotFound("GetProviderConnections", "user not authenticated"))
 		return
 	}
@@ -197,8 +180,8 @@ func (h *Handler) CheckProviderConnected(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 
 	// Get user ID from context
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
+	userID := log.UserIDFromContext(ctx)
+	if userID == "" {
 		WriteError(w, domain.ErrVerificationNotFound("CheckProviderConnected", "user not authenticated"))
 		return
 	}
@@ -249,8 +232,8 @@ func (h *Handler) InitiateVerification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get user ID from context
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
+	userID := log.UserIDFromContext(ctx)
+	if userID == "" {
 		WriteError(w, domain.ErrVerificationNotFound("InitiateVerification", "user not authenticated"))
 		return
 	}
@@ -307,23 +290,21 @@ func (h *Handler) InitiateVerification(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Parse OAuth callback parameters
-	req := OAuthCallbackRequest{
-		State: request.QueryParam(r, "state"),
-		Code:  request.QueryParam(r, "code"),
-		Error: request.QueryParam(r, "error"),
-	}
+	// Extract OAuth callback parameters
+	state := request.QueryParam(r, "state")
+	code := request.QueryParam(r, "code")
+	oauthError := request.QueryParam(r, "error")
 
-	// Validate request
-	if err := req.Validate(); err != nil {
-		WriteError(w, err)
+	// Validate required parameters
+	if state == "" {
+		WriteError(w, domain.ErrOAuthStateMismatch("HandleOAuthCallback"))
 		return
 	}
 
 	// Create command
-	cmd := command.NewHandleOAuthCallback(req.State, req.Code)
-	if req.Error != "" {
-		cmd.WithError(req.Error)
+	cmd := command.NewHandleOAuthCallback(state, code)
+	if oauthError != "" {
+		cmd.WithError(oauthError)
 	}
 
 	// Dispatch command
@@ -359,8 +340,8 @@ func (h *Handler) CancelVerification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get user ID from context
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
+	userID := log.UserIDFromContext(ctx)
+	if userID == "" {
 		WriteError(w, domain.ErrVerificationNotFound("CancelVerification", "user not authenticated"))
 		return
 	}
@@ -425,8 +406,8 @@ func (h *Handler) initiateProviderVerification(
 	ctx := r.Context()
 
 	// Get user ID from context
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
+	userID := log.UserIDFromContext(ctx)
+	if userID == "" {
 		WriteError(w, domain.ErrVerificationNotFound("initiateProviderVerification", "user not authenticated"))
 		return
 	}

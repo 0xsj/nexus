@@ -70,19 +70,56 @@ func (h *InitiateVerificationHandler) Handle(ctx context.Context, cmd *InitiateV
 		return nil, domain.ErrProviderNotSupported(op, cmd.Provider.String())
 	}
 
-	// Generate OAuth state
+	// 1. Create verification aggregate with temporary OAuth state
+	verification := domain.NewVerification(cmd.VerificationID)
+
+	// Use verification ID as temporary placeholder for OAuth state
+	// This will be updated after we generate the real state
+	tempState := cmd.VerificationID
+
+	if err := verification.Initiate(
+		cmd.UserID,
+		cmd.Provider,
+		cmd.CredentialType,
+		tempState,
+		cmd.RedirectURL,
+		h.verificationTTL,
+	); err != nil {
+		return nil, err
+	}
+
+	// 2. Save verification FIRST (FK constraint requires verification to exist)
+	if err := h.verificationRepo.Save(ctx, verification); err != nil {
+		return nil, err
+	}
+
+	// 3. Generate OAuth state (now that verification exists)
 	oauthState, err := h.oauthStateService.GenerateState(ctx, domain.GenerateStateParams{
 		UserID:         cmd.UserID,
 		Provider:       cmd.Provider,
 		CredentialType: cmd.CredentialType,
 		RedirectURL:    cmd.RedirectURL,
 		TTL:            int64(h.verificationTTL.Seconds()),
+		VerificationID: cmd.VerificationID,
 	})
 	if err != nil {
+		// Cleanup: delete the verification we just created
+		_ = h.verificationRepo.Delete(ctx, cmd.VerificationID)
 		return nil, err
 	}
 
-	// Get authorization URL from provider
+	// 4. Update verification with the real OAuth state
+	if err := verification.UpdateOAuthState(oauthState.Value); err != nil {
+		_ = h.verificationRepo.Delete(ctx, cmd.VerificationID)
+		return nil, err
+	}
+
+	// 5. Save the updated verification
+	if err := h.verificationRepo.Save(ctx, verification); err != nil {
+		return nil, err
+	}
+
+	// 6. Get authorization URL from provider
 	authURL, err := h.providerService.GetAuthorizationURL(ctx, domain.AuthorizationURLParams{
 		Provider:    cmd.Provider,
 		State:       oauthState.Value,
@@ -90,26 +127,6 @@ func (h *InitiateVerificationHandler) Handle(ctx context.Context, cmd *InitiateV
 		Scopes:      nil, // Provider will use defaults for credential type
 	})
 	if err != nil {
-		return nil, err
-	}
-
-	// Create verification aggregate
-	verification := domain.NewVerification(cmd.VerificationID)
-
-	// Initiate the verification
-	if err := verification.Initiate(
-		cmd.UserID,
-		cmd.Provider,
-		cmd.CredentialType,
-		oauthState.Value,
-		cmd.RedirectURL,
-		h.verificationTTL,
-	); err != nil {
-		return nil, err
-	}
-
-	// Persist
-	if err := h.verificationRepo.Save(ctx, verification); err != nil {
 		return nil, err
 	}
 

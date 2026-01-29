@@ -271,6 +271,24 @@ func (v *Verification) Authorize(authorizationCode string) error {
 	return nil
 }
 
+// UpdateOAuthState updates the OAuth state value.
+// This is used when the verification is created before the OAuth state.
+func (v *Verification) UpdateOAuthState(oauthState string) error {
+	const op = "Verification.UpdateOAuthState"
+
+	if v.status != StatusPending {
+		return ErrVerificationInvalidState(op, string(v.status), string(StatusPending))
+	}
+
+	if oauthState == "" {
+		return eventsourcing.ErrAggregateValidation(op, "OAuth state is required")
+	}
+
+	// Directly update - no event needed for this internal state change
+	v.oauthState = oauthState
+	return nil
+}
+
 // StartFetching marks that provider data fetch has begun.
 func (v *Verification) StartFetching(accessTokenHash string) error {
 	const op = "Verification.StartFetching"

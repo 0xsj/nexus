@@ -172,6 +172,9 @@ func NewModuleWithConfig(logger log.Logger, cfg ModuleConfig) (*Module, error) {
 
 	// Create HTTP router
 	router := httpv1.NewRouter(commandBus, queryBus, idGenerator, logger)
+	if cfg.AuthMiddleware != nil {
+		router.WithAuthMiddleware(cfg.AuthMiddleware)
+	}
 
 	logger.Info("verification module initialized",
 		log.String("storage", "PostgreSQL"),

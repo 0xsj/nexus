@@ -279,6 +279,11 @@ func NewOAuthStateService(stateRepo domain.OAuthStateRepository, config *Config,
 func (s *OAuthStateService) GenerateState(ctx context.Context, params domain.GenerateStateParams) (*domain.OAuthState, error) {
 	const op = "OAuthStateService.GenerateState"
 
+	// Validate verification ID is provided
+	if params.VerificationID == "" {
+		return nil, fmt.Errorf("%s: verification ID is required", op)
+	}
+
 	// Generate random state value
 	stateBytes := make([]byte, 32)
 	if _, err := rand.Read(stateBytes); err != nil {
@@ -292,9 +297,10 @@ func (s *OAuthStateService) GenerateState(ctx context.Context, params domain.Gen
 		ttl = time.Duration(params.TTL) * time.Second
 	}
 
-	// Create state
+	// Create state with verification ID
 	state := domain.NewOAuthState(
 		stateValue,
+		params.VerificationID,
 		params.UserID,
 		params.Provider,
 		params.CredentialType,
