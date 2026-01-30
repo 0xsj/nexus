@@ -1,96 +1,123 @@
 package domain
 
-import "github.com/0xsj/nexus/platform/pkg/errors"
+import (
+	"errors"
 
-// Domain error codes for the Ledger context.
+	pkgerrors "github.com/0xsj/nexus/platform/pkg/errors"
+)
+
+// ============================================================================
+// Error Codes (Ledger-specific)
+// ============================================================================
+
 const (
-	// CodeEntryNotFound indicates an audit entry was not found.
-	CodeEntryNotFound errors.Code = "LEDGER_ENTRY_NOT_FOUND"
+	// Entry errors
+	CodeEntryNotFound   pkgerrors.Code = "LEDGER_ENTRY_NOT_FOUND"
+	CodeInvalidEntryID  pkgerrors.Code = "LEDGER_INVALID_ENTRY_ID"
+	CodeEntryValidation pkgerrors.Code = "LEDGER_ENTRY_VALIDATION"
 
-	// CodeInvalidEntryID indicates an invalid entry ID format.
-	CodeInvalidEntryID errors.Code = "LEDGER_INVALID_ENTRY_ID"
+	// Actor errors
+	CodeInvalidActorID   pkgerrors.Code = "LEDGER_INVALID_ACTOR_ID"
+	CodeInvalidActorType pkgerrors.Code = "LEDGER_INVALID_ACTOR_TYPE"
 
-	// CodeInvalidActorType indicates an invalid actor type.
-	CodeInvalidActorType errors.Code = "LEDGER_INVALID_ACTOR_TYPE"
+	// Subject errors
+	CodeInvalidSubjectID   pkgerrors.Code = "LEDGER_INVALID_SUBJECT_ID"
+	CodeInvalidSubjectType pkgerrors.Code = "LEDGER_INVALID_SUBJECT_TYPE"
 
-	// CodeInvalidSubjectType indicates an invalid subject type.
-	CodeInvalidSubjectType errors.Code = "LEDGER_INVALID_SUBJECT_TYPE"
+	// Event type errors
+	CodeInvalidEventType pkgerrors.Code = "LEDGER_INVALID_EVENT_TYPE"
 
-	// CodeInvalidEventType indicates an invalid event type format.
-	CodeInvalidEventType errors.Code = "LEDGER_INVALID_EVENT_TYPE"
-
-	// CodeInvalidMetadata indicates invalid metadata.
-	CodeInvalidMetadata errors.Code = "LEDGER_INVALID_METADATA"
-
-	// CodeEntryValidation indicates an entry validation failure.
-	CodeEntryValidation errors.Code = "LEDGER_ENTRY_VALIDATION"
+	// Metadata errors
+	CodeInvalidMetadata pkgerrors.Code = "LEDGER_INVALID_METADATA"
 )
 
-// Sentinel errors for the Ledger context.
+// ============================================================================
+// Sentinel Errors
+// ============================================================================
+
 var (
-	// ErrEntryNotFound indicates an audit entry was not found.
-	ErrEntryNotFound = errors.New(errors.KindNotFound, CodeEntryNotFound, "audit entry not found")
+	// Entry errors
+	ErrEntryNotFound   = errors.New("audit entry not found")
+	ErrInvalidEntryID  = errors.New("invalid entry ID")
+	ErrEntryValidation = errors.New("entry validation failed")
 
-	// ErrInvalidEntryID indicates an invalid entry ID.
-	ErrInvalidEntryID = errors.New(errors.KindValidation, CodeInvalidEntryID, "invalid entry ID")
+	// Actor errors
+	ErrInvalidActorID   = errors.New("invalid actor ID")
+	ErrInvalidActorType = errors.New("invalid actor type")
 
-	// ErrInvalidActorType indicates an invalid actor type.
-	ErrInvalidActorType = errors.New(errors.KindValidation, CodeInvalidActorType, "invalid actor type")
+	// Subject errors
+	ErrInvalidSubjectID   = errors.New("invalid subject ID")
+	ErrInvalidSubjectType = errors.New("invalid subject type")
 
-	// ErrInvalidSubjectType indicates an invalid subject type.
-	ErrInvalidSubjectType = errors.New(errors.KindValidation, CodeInvalidSubjectType, "invalid subject type")
+	// Event type errors
+	ErrInvalidEventType = errors.New("invalid event type")
 
-	// ErrInvalidEventType indicates an invalid event type format.
-	ErrInvalidEventType = errors.New(errors.KindValidation, CodeInvalidEventType, "invalid event type")
-
-	// ErrInvalidMetadata indicates invalid metadata.
-	ErrInvalidMetadata = errors.New(errors.KindValidation, CodeInvalidMetadata, "invalid metadata")
+	// Metadata errors
+	ErrInvalidMetadata = errors.New("invalid metadata")
 )
 
-// EntryNotFound returns a not found error for a specific entry ID.
-func EntryNotFound(entryID string) *errors.Error {
-	return errors.NotFound("ledger.Domain", "audit entry").
+// ============================================================================
+// Error Constructors
+// ============================================================================
+
+// EntryNotFound creates an entry not found error.
+func EntryNotFound(operation string, entryID string) *pkgerrors.Error {
+	return pkgerrors.NotFound(operation, "audit entry").
 		WithCode(CodeEntryNotFound).
 		WithMeta("entry_id", entryID)
 }
 
-// InvalidEntryID returns a validation error for an invalid entry ID.
-func InvalidEntryID(value string, reason string) *errors.Error {
-	return errors.Validation("ledger.Domain", reason).
+// InvalidEntryID creates an invalid entry ID error.
+func InvalidEntryID(operation string, value string, reason string) *pkgerrors.Error {
+	return pkgerrors.Validation(operation, "invalid entry ID: "+reason).
 		WithCode(CodeInvalidEntryID).
 		WithMeta("value", value)
 }
 
-// InvalidActorType returns a validation error for an invalid actor type.
-func InvalidActorType(value string) *errors.Error {
-	return errors.Validationf("ledger.Domain", "invalid actor type: %s", value).
+// EntryValidation creates an entry validation error.
+func EntryValidation(operation string, field string, reason string) *pkgerrors.Error {
+	return pkgerrors.Validationf(operation, "invalid %s: %s", field, reason).
+		WithCode(CodeEntryValidation).
+		WithMeta("field", field)
+}
+
+// InvalidActorID creates an invalid actor ID error.
+func InvalidActorID(operation string, value string, reason string) *pkgerrors.Error {
+	return pkgerrors.Validation(operation, "invalid actor ID: "+reason).
+		WithCode(CodeInvalidActorID).
+		WithMeta("value", value)
+}
+
+// InvalidActorType creates an invalid actor type error.
+func InvalidActorType(operation string, value string) *pkgerrors.Error {
+	return pkgerrors.Validationf(operation, "invalid actor type: %s", value).
 		WithCode(CodeInvalidActorType).
 		WithMeta("value", value)
 }
 
-// InvalidSubjectType returns a validation error for an invalid subject type.
-func InvalidSubjectType(value string) *errors.Error {
-	return errors.Validationf("ledger.Domain", "invalid subject type: %s", value).
+// InvalidSubjectID creates an invalid subject ID error.
+func InvalidSubjectID(operation string, value string, reason string) *pkgerrors.Error {
+	return pkgerrors.Validation(operation, "invalid subject ID: "+reason).
+		WithCode(CodeInvalidSubjectID).
+		WithMeta("value", value)
+}
+
+// InvalidSubjectType creates an invalid subject type error.
+func InvalidSubjectType(operation string, value string) *pkgerrors.Error {
+	return pkgerrors.Validationf(operation, "invalid subject type: %s", value).
 		WithCode(CodeInvalidSubjectType).
 		WithMeta("value", value)
 }
 
-// InvalidEventType returns a validation error for an invalid event type.
-func InvalidEventType(value string, reason string) *errors.Error {
-	return errors.Validation("ledger.Domain", reason).
+// InvalidEventType creates an invalid event type error.
+func InvalidEventType(operation string, value string, reason string) *pkgerrors.Error {
+	return pkgerrors.Validation(operation, "invalid event type: "+reason).
 		WithCode(CodeInvalidEventType).
 		WithMeta("value", value)
 }
 
-// InvalidMetadata returns a validation error for invalid metadata.
-func InvalidMetadata(reason string) *errors.Error {
-	return errors.Validation("ledger.Domain", reason).
+// InvalidMetadata creates an invalid metadata error.
+func InvalidMetadata(operation string, reason string) *pkgerrors.Error {
+	return pkgerrors.Validation(operation, "invalid metadata: "+reason).
 		WithCode(CodeInvalidMetadata)
-}
-
-// EntryValidation returns a validation error for entry construction.
-func EntryValidation(field string, reason string) *errors.Error {
-	return errors.Validationf("ledger.Domain", "invalid %s: %s", field, reason).
-		WithCode(CodeEntryValidation).
-		WithMeta("field", field)
 }
