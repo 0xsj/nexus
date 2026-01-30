@@ -23,7 +23,7 @@ func NewEntryID() EntryID {
 func ParseEntryID(s string) (EntryID, error) {
 	id, err := types.ParseID(s)
 	if err != nil {
-		return EntryID{}, InvalidEntryID("EntryID.Parse", s, err.Error())
+		return EntryID{}, InvalidEntryID("domain.ParseEntryID", s, err.Error())
 	}
 	return EntryID{value: id}, nil
 }
