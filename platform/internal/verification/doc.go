@@ -1,279 +1,260 @@
-// Package verification provides the bounded context for verification flow orchestration.
+// Package verification provides the bounded context for external account verification.
 //
 // # Purpose
 //
-// Verification orchestrates the process of verifying a user's external accounts
-// and triggering credential issuance. It owns the OAuth state machine, coordinates
-// with Integration for data fetching, and requests credential issuance from the
-// Credential context. Verification is a thin orchestration layer, not a data
-// processing layer.
+// Verification orchestrates the process of connecting external accounts (GitHub,
+// LinkedIn, etc.) and triggering credential issuance. It manages OAuth flows,
+// coordinates data fetching, and requests credential creation. In the current
+// implementation, Verification contains provider-specific logic that will be
+// extracted to the Integration context in a future refactor.
 //
 // # Core Responsibilities
 //
-//   - Manage OAuth flow lifecycle (initiate, callback, token exchange)
-//   - Maintain verification state and status progression
-//   - Store and validate OAuth state parameters (CSRF protection)
-//   - Coordinate with Integration to fetch normalized provider data
-//   - Coordinate with Credential to issue verifiable credentials
-//   - Track verification history per user and provider
-//   - Handle verification failures and retry logic
-//
-// # What Verification Does NOT Do
-//
-//   - Provider-specific API calls (Integration context)
-//   - Data normalization or mapping (Integration context)
-//   - Credential signing or storage (Credential context)
-//   - Schema validation (Schema context)
+//   - Initiate OAuth flows with external providers
+//   - Manage OAuth state for CSRF protection
+//   - Handle OAuth callbacks and token exchange
+//   - Store provider tokens for data access
+//   - Fetch data from provider APIs (to be extracted to Integration)
+//   - Trigger credential issuance based on fetched data
+//   - Track verification status and history
 //
 // # Key Entities
 //
-//   - Verification: The aggregate root representing a single verification attempt.
-//     Tracks status progression from initiation through credential issuance.
+//   - Verification: The aggregate root representing a verification attempt.
+//     Tracks the full lifecycle from initiation to credential issuance.
 //
-//   - OAuthState: Value object for CSRF protection during OAuth flow. Contains
-//     state token, expiration, and associated verification ID.
+//   - OAuthState: CSRF protection token linking OAuth callback to
+//     verification attempt. Time-limited and single-use.
 //
-//   - ProviderToken: OAuth tokens (access, refresh) received after successful
-//     authorization. Passed to Integration for data fetching.
-//
-//   - VerificationStatus: Enum representing the verification state machine
-//     (Pending, OAuthStarted, TokenReceived, DataFetched, CredentialIssued, Failed).
+//   - ProviderToken: OAuth access and refresh tokens for a provider.
+//     Used to fetch data from provider APIs.
 //
 // # Domain Concepts
 //
-// ## Verification State Machine
+// ## Verification Lifecycle
 //
-//	┌─────────┐
-//	│ Pending │
-//	└────┬────┘
-//	     │ InitiateOAuth
-//	     ▼
-//	┌──────────────┐
-//	│ OAuthStarted │
-//	└──────┬───────┘
-//	       │ OAuth callback received
-//	       ▼
-//	┌────────────────┐
-//	│ TokenReceived  │
-//	└───────┬────────┘
-//	        │ Integration.Fetch()
-//	        ▼
-//	┌─────────────┐
-//	│ DataFetched │
-//	└──────┬──────┘
-//	       │ Credential.Issue()
-//	       ▼
-//	┌──────────────────┐
-//	│ CredentialIssued │  (terminal success)
-//	└──────────────────┘
+//	┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+//	│  Start   │────►│  OAuth   │────►│  Fetch   │────►│  Issue   │
+//	│          │     │ Callback │     │   Data   │     │Credential│
+//	└──────────┘     └──────────┘     └──────────┘     └──────────┘
+//	     │                │                │                │
+//	     │                ▼                ▼                ▼
+//	     │          ┌──────────┐     ┌──────────┐     ┌──────────┐
+//	     └─────────►│  Failed  │◄────│  Failed  │◄────│  Failed  │
+//	                └──────────┘     └──────────┘     └──────────┘
 //
-//	Any state can transition to:
-//	┌────────┐
-//	│ Failed │  (terminal failure)
-//	└────────┘
+// Status progression:
+//
+//	Pending         → User initiated verification
+//	OAuthStarted    → Redirected to provider
+//	OAuthCompleted  → Callback received, tokens obtained
+//	DataFetched     → Provider data retrieved
+//	CredentialIssued→ VC created and stored
+//	Failed          → Error at any stage
 //
 // ## OAuth Flow
 //
-// Verification owns the OAuth dance but delegates provider specifics:
+//	┌────────┐     ┌────────┐     ┌────────┐     ┌────────┐
+//	│  User  │     │ Proof  │     │Provider│     │ Proof  │
+//	│ clicks │────►│  save  │────►│  auth  │────►│callback│
+//	│"verify"│     │ state  │     │ screen │     │handler │
+//	└────────┘     └────────┘     └────────┘     └────────┘
+//	                                                  │
+//	                   ┌──────────────────────────────┘
+//	                   ▼
+//	              ┌────────┐     ┌────────┐     ┌────────┐
+//	              │exchange│────►│ fetch  │────►│ issue  │
+//	              │ token  │     │  data  │     │  VC    │
+//	              └────────┘     └────────┘     └────────┘
 //
-//  1. User requests verification for a provider (e.g., GitHub)
-//  2. Verification generates OAuth state, stores it, returns auth URL
-//  3. User authorizes with provider, redirected back with code
-//  4. Verification validates state, exchanges code for tokens
-//  5. Verification calls Integration with tokens to fetch data
-//  6. Verification calls Credential with claims to issue VC
-//  7. Verification marks complete, stores credential reference
+// ## Supported Providers (Current)
 //
-// ## Reverification
+//	| Provider   | OAuth Scopes                  | Credential Type        |
+//	|------------|-------------------------------|------------------------|
+//	| GitHub     | read:user, repo               | GitHubContributor      |
+//	| LinkedIn   | r_liteprofile, r_emailaddress | ProfessionalExperience |
 //
-// Users can reverify to refresh credentials with updated data:
+// ## Verification Aggregate
 //
-//   - Existing verification marked as superseded
-//   - New verification flow initiated
-//   - Old credential optionally revoked
-//   - New credential issued with fresh data
-//
-// # Relationships to Other Contexts
-//
-//   - Identity: Provides user context. Verification is always linked to a user.
-//     Identity may also store provider connection metadata.
-//
-//   - Integration: Verification calls Integration (via port) to fetch provider
-//     data after OAuth tokens are received. Integration returns normalized claims.
-//
-//   - Credential: Verification calls Credential (via port) to issue a VC after
-//     data is fetched. Credential returns the issued credential ID.
-//
-//   - Schema: Verification references schema type when initiating, so Integration
-//     knows what data to fetch and Credential knows what schema to use.
-//
-//   - Ledger: Verification events are projected to Ledger for audit trail.
-//
-// # Ports (Interfaces to Other Contexts)
-//
-//	// DataFetcher is the port to the Integration context.
-//	// Verification calls this after receiving OAuth tokens.
-//	type DataFetcher interface {
-//		Fetch(ctx context.Context, req DataFetchRequest) (*DataFetchResult, error)
+//	Verification {
+//	    ID              VerificationID
+//	    UserID          identity.UserID
+//	    Provider        ProviderType
+//	    Status          VerificationStatus
+//	    OAuthState      string              // CSRF token
+//	    CredentialID    *credential.CredentialID
+//	    Error           *VerificationError
+//	    StartedAt       time.Time
+//	    CompletedAt     *time.Time
 //	}
 //
-//	type DataFetchRequest struct {
-//		UserID       identity.UserID
-//		Provider     ProviderType
-//		AccessToken  string
-//		SchemaType   string
+// ## Provider Tokens
+//
+//	ProviderToken {
+//	    ID              TokenID
+//	    UserID          identity.UserID
+//	    Provider        ProviderType
+//	    AccessToken     string              // Encrypted at rest
+//	    RefreshToken    *string             // Encrypted at rest
+//	    ExpiresAt       *time.Time
+//	    Scopes          []string
+//	    CreatedAt       time.Time
+//	    UpdatedAt       time.Time
 //	}
 //
-//	type DataFetchResult struct {
-//		Claims    map[string]any
-//		FetchedAt time.Time
-//		Raw       []byte // Original response for audit
-//	}
+// Tokens are stored encrypted and used for:
+//   - Initial data fetch during verification
+//   - Re-verification (refresh credentials with updated data)
+//   - Continuous verification (future: periodic refresh)
 //
-//	// CredentialIssuer is the port to the Credential context.
-//	// Verification calls this after data is fetched and normalized.
-//	type CredentialIssuer interface {
-//		Issue(ctx context.Context, req CredentialIssueRequest) (*CredentialIssueResult, error)
-//	}
+// # Current Architecture (Pre-Refactor)
 //
-//	type CredentialIssueRequest struct {
-//		SubjectDID  did.DID
-//		SchemaType  string
-//		Claims      map[string]any
-//	}
-//
-//	type CredentialIssueResult struct {
-//		CredentialID credential.CredentialID
-//		IssuedAt     time.Time
-//	}
-//
-// # Example Use Cases
-//
-// ## Initiating GitHub Verification
-//
-//	cmd := command.InitiateVerification{
-//		UserID:     userID,
-//		Provider:   ProviderGitHub,
-//		SchemaType: "GitHubContributor",
-//		RedirectURL: "https://app.proof.com/callback",
-//	}
-//
-//	result, err := handler.Handle(ctx, cmd)
-//	// result.AuthorizationURL = "https://github.com/login/oauth/authorize?..."
-//	// result.VerificationID = "ver_abc123"
-//	// result.State = "random_state_token"
-//
-// ## Handling OAuth Callback
-//
-//	cmd := command.CompleteOAuthCallback{
-//		State: "random_state_token",
-//		Code:  "auth_code_from_github",
-//	}
-//
-//	// Handler internally:
-//	// 1. Validates state, retrieves verification
-//	// 2. Exchanges code for tokens
-//	// 3. Calls DataFetcher.Fetch() with tokens
-//	// 4. Calls CredentialIssuer.Issue() with claims
-//	// 5. Updates verification status to CredentialIssued
-//
-//	result, err := handler.Handle(ctx, cmd)
-//	// result.VerificationID = "ver_abc123"
-//	// result.CredentialID = "cred_xyz789"
-//	// result.Status = CredentialIssued
-//
-// ## Querying Verification History
-//
-//	query := query.GetUserVerifications{
-//		UserID: userID,
-//	}
-//
-//	verifications, err := handler.Handle(ctx, query)
-//	// Returns all verification attempts for user with status, timestamps, credential refs
-//
-// # Architecture Notes
-//
-// Verification follows the standard bounded context structure:
+// The current implementation includes provider-specific logic that will
+// be extracted to the Integration context:
 //
 //	internal/verification/
 //	├── domain/
-//	│   ├── verification.go    // Verification aggregate root
-//	│   ├── status.go          // VerificationStatus enum
-//	│   ├── provider.go        // ProviderType enum
-//	│   ├── oauth_state.go     // OAuthState value object
-//	│   ├── token.go           // ProviderToken value object
-//	│   ├── ports.go           // DataFetcher, CredentialIssuer interfaces
+//	│   ├── verification.go    // Verification aggregate
+//	│   ├── values.go          // ProviderType, Status, etc.
 //	│   ├── errors.go          // Domain errors
-//	│   ├── events.go          // VerificationStarted, Completed, Failed, etc.
+//	│   ├── events.go          // VerificationStarted, Completed, etc.
 //	│   ├── repository.go      // Repository interface
 //	│   └── services.go        // Domain services
 //	├── application/
 //	│   ├── command/
-//	│   │   ├── commands.go    // InitiateVerification, CompleteCallback, etc.
-//	│   │   └── handlers.go    // Command handlers (orchestration logic)
+//	│   │   ├── commands.go    // StartVerification, CompleteCallback, etc.
+//	│   │   └── handlers.go    // Command handlers
 //	│   └── query/
 //	│       ├── queries.go     // GetVerification, ListUserVerifications
-//	│       ├── handlers.go    // Query handlers
-//	│       ├── repository.go  // Read repository interface
-//	│       └── views.go       // Read models
+//	│       └── handlers.go    // Query handlers
 //	├── infrastructure/
+//	│   ├── credential/
+//	│   │   ├── adapter.go     // Credential context adapter
+//	│   │   └── issuer.go      // Credential issuance logic
 //	│   ├── oauth/
-//	│   │   ├── config.go      // OAuth client configuration per provider
-//	│   │   └── client.go      // OAuth URL generation, token exchange
-//	│   ├── adapters/
-//	│   │   ├── integration.go // DataFetcher adapter (calls Integration context)
-//	│   │   └── credential.go  // CredentialIssuer adapter (calls Credential context)
+//	│   │   ├── config.go      // OAuth client configuration
+//	│   │   ├── provider.go    // OAuth URL generation, token exchange
+//	│   │   ├── github.go      // GitHub-specific API calls (→ Integration)
+//	│   │   └── linkedin.go    // LinkedIn-specific API calls (→ Integration)
 //	│   └── persistence/
 //	│       └── postgres/
-//	│           ├── repository.go
+//	│           ├── verification_repository.go
 //	│           ├── oauth_state_repository.go
+//	│           ├── provider_token_repository.go
 //	│           ├── mapper.go
+//	│           ├── queries.go
+//	│           ├── reader.go
 //	│           └── migrations/
 //	├── interface/
 //	│   └── http/
 //	│       └── v1/
 //	│           ├── handler.go
-//	│           ├── routes.go
 //	│           ├── requests.go
-//	│           └── responses.go
-//	└── provider.go            // Dependency injection setup
+//	│           ├── responses.go
+//	│           ├── errors.go
+//	│           └── router.go
+//	└── provider.go            // Dependency injection
 //
-// # Migration Notes
+// # Planned Refactor
 //
-// The current verification implementation includes provider-specific code that
-// will be extracted to the Integration context:
+// After extracting Integration context, Verification will:
 //
-//	| File                                    | Action                              |
-//	|-----------------------------------------|-------------------------------------|
-//	| infrastructure/oauth/github.go          | Move to integration/adapters/github |
-//	| infrastructure/oauth/linkedin.go        | Move to integration/adapters/linkedin |
-//	| infrastructure/oauth/config.go          | Keep (OAuth client config)          |
-//	| infrastructure/oauth/provider.go        | Keep (OAuth URL/token exchange)     |
-//	| infrastructure/credential/issuer.go     | Replace with port adapter           |
-//	| infrastructure/credential/adapter.go    | Replace with port adapter           |
+//  1. Keep: OAuth flow orchestration (state, redirects, token exchange)
+//  2. Keep: Verification aggregate and status management
+//  3. Move: Provider API calls → Integration context
+//  4. Move: Data normalization → Integration context
+//  5. Add: Port to Integration (DataFetcher interface)
+//  6. Add: Port to Credential (CredentialIssuer interface)
 //
-// After migration, Verification will depend on ports (interfaces) rather than
-// concrete implementations, enabling clean separation and testability.
+// Post-refactor structure:
+//
+//	Verification                     Integration
+//	┌─────────────────┐             ┌─────────────────┐
+//	│ OAuth Flow      │             │ Provider Adapters│
+//	│ State Mgmt      │────────────►│ GitHub, LinkedIn │
+//	│ Token Exchange  │  DataFetcher│ Data Fetching    │
+//	└────────┬────────┘             │ Normalization    │
+//	         │                      └─────────────────┘
+//	         │ CredentialIssuer
+//	         ▼
+//	┌─────────────────┐
+//	│   Credential    │
+//	│   VC Issuance   │
+//	└─────────────────┘
+//
+// # Relationships to Other Contexts
+//
+//   - Identity: Provides user context. Verification is always for a user.
+//
+//   - Credential: Verification triggers credential issuance after data
+//     is fetched. Currently direct call, will become port.
+//
+//   - Integration (future): Will handle provider-specific API calls
+//     and data normalization.
+//
+//   - Schema (future): Will provide schema definitions for mapping
+//     provider data to credential claims.
+//
+//   - Ledger: Verification events projected for audit trail.
+//
+//   - Notification: User notified on verification completion/failure.
 //
 // # Events
 //
-// Verification emits domain events for each state transition:
+//   - VerificationStarted: User initiated verification
+//   - OAuthStateCreated: OAuth state token generated
+//   - OAuthCallbackReceived: Provider redirected back
+//   - TokensReceived: OAuth tokens obtained
+//   - DataFetchStarted: Provider API call initiated
+//   - DataFetchCompleted: Provider data retrieved
+//   - DataFetchFailed: Provider API call failed
+//   - CredentialIssueRequested: Credential issuance triggered
+//   - VerificationCompleted: Full flow successful
+//   - VerificationFailed: Flow failed at some stage
 //
-//   - VerificationInitiated: User started verification for a provider
-//   - OAuthCompleted: OAuth tokens received successfully
-//   - DataFetchCompleted: Integration returned normalized claims
-//   - CredentialIssued: Credential context issued the VC
-//   - VerificationFailed: Any step failed (includes reason)
-//   - VerificationSuperseded: Replaced by a newer verification
+// # Security Considerations
 //
-// These events are consumed by Ledger for audit trail and potentially
-// by Notification for user alerts.
+//   - OAuth state tokens are cryptographically random
+//   - State tokens are time-limited (15 minutes)
+//   - State tokens are single-use
+//   - Provider tokens are encrypted at rest
+//   - Tokens are scoped to minimum required permissions
+//   - Token refresh handled automatically when expired
+//
+// # Error Handling
+//
+// Verification errors include:
+//
+//   - OAuthError: Provider denied access or returned error
+//   - StateInvalidError: CSRF token mismatch or expired
+//   - TokenExchangeError: Failed to exchange code for tokens
+//   - DataFetchError: Provider API call failed
+//   - CredentialIssueError: Credential context rejected issuance
+//   - ProviderUnavailableError: Provider API unreachable
+//
+// Errors are captured in the Verification aggregate with details
+// for debugging and user feedback.
+//
+// # Re-verification
+//
+// Users can re-verify to update credentials:
+//
+//  1. User initiates re-verification for existing provider
+//  2. Full OAuth flow repeated (user may need to re-authorize)
+//  3. Fresh data fetched from provider
+//  4. New credential issued (or existing updated)
+//  5. Old credential optionally superseded
+//
+// Re-verification is useful when:
+//   - User's data has changed (new commits, new job)
+//   - Credential approaching expiration
+//   - User wants to refresh stale data
 //
 // # Future Considerations
 //
-//   - Scheduled reverification (refresh credentials periodically)
-//   - Batch verification (verify multiple providers in one flow)
-//   - Verification delegation (org admin verifies on behalf of member)
+//   - Scheduled re-verification (automatic refresh)
 //   - Webhook-triggered verification (provider pushes updates)
-//   - Partial verification (some claims verified, others pending)
+//   - Partial verification (verify subset of claims)
+//   - Batch verification (multiple providers in one flow)
+//   - Verification delegation (org admin verifies members)
 package verification
