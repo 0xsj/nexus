@@ -17,6 +17,7 @@ const (
 	CodeUserAlreadyExists pkgerrors.Code = "USER_ALREADY_EXISTS"
 	CodeUserSuspended     pkgerrors.Code = "USER_SUSPENDED"
 	CodeUserNotActive     pkgerrors.Code = "USER_NOT_ACTIVE"
+	CodeInvalidUserID     pkgerrors.Code = "INVALID_USER_ID"
 
 	// Email errors
 	CodeEmailAlreadyRegistered pkgerrors.Code = "EMAIL_ALREADY_REGISTERED"
@@ -24,10 +25,11 @@ const (
 	CodeInvalidEmail           pkgerrors.Code = "INVALID_EMAIL"
 
 	// Session errors
-	CodeSessionNotFound pkgerrors.Code = "SESSION_NOT_FOUND"
-	CodeSessionExpired  pkgerrors.Code = "SESSION_EXPIRED"
-	CodeSessionRevoked  pkgerrors.Code = "SESSION_REVOKED"
-	CodeInvalidToken    pkgerrors.Code = "INVALID_TOKEN"
+	CodeSessionNotFound  pkgerrors.Code = "SESSION_NOT_FOUND"
+	CodeSessionExpired   pkgerrors.Code = "SESSION_EXPIRED"
+	CodeSessionRevoked   pkgerrors.Code = "SESSION_REVOKED"
+	CodeInvalidToken     pkgerrors.Code = "INVALID_TOKEN"
+	CodeInvalidSessionID pkgerrors.Code = "INVALID_SESSION_ID"
 
 	// Magic link errors
 	CodeMagicLinkExpired  pkgerrors.Code = "MAGIC_LINK_EXPIRED"
@@ -61,16 +63,18 @@ var (
 	ErrUserAlreadyExists = errors.New("user already exists")
 	ErrUserSuspended     = errors.New("user is suspended")
 	ErrUserNotActive     = errors.New("user is not active")
+	ErrInvalidUserID     = errors.New("invalid user ID")
 
 	// Email errors
 	ErrEmailAlreadyRegistered = errors.New("email already registered")
 	ErrEmailNotVerified       = errors.New("email not verified")
 
 	// Session errors
-	ErrSessionNotFound = errors.New("session not found")
-	ErrSessionExpired  = errors.New("session expired")
-	ErrSessionRevoked  = errors.New("session revoked")
-	ErrInvalidToken    = errors.New("invalid token")
+	ErrSessionNotFound  = errors.New("session not found")
+	ErrSessionExpired   = errors.New("session expired")
+	ErrSessionRevoked   = errors.New("session revoked")
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrInvalidSessionID = errors.New("invalid session ID")
 
 	// Magic link errors
 	ErrMagicLinkExpired  = errors.New("magic link expired")
@@ -126,6 +130,13 @@ func UserNotActive(operation string, userID string) *pkgerrors.Error {
 		WithMeta("user_id", userID)
 }
 
+// InvalidUserID creates an invalid user ID error.
+func InvalidUserID(operation string, value string) *pkgerrors.Error {
+	return pkgerrors.Validation(operation, "invalid user ID format").
+		WithCode(CodeInvalidUserID).
+		WithMeta("value", value)
+}
+
 // EmailAlreadyRegistered creates an email already registered error.
 func EmailAlreadyRegistered(operation string, email string) *pkgerrors.Error {
 	return pkgerrors.Conflict(operation, "email").
@@ -154,46 +165,53 @@ func SessionNotFound(operation string, sessionID string) *pkgerrors.Error {
 		WithMeta("session_id", sessionID)
 }
 
-// SessionExpired creates a session expired error.
-func SessionExpired(operation string, sessionID string) *pkgerrors.Error {
+// SessionExpiredError creates a session expired error.
+func SessionExpiredError(operation string, sessionID string) *pkgerrors.Error {
 	return pkgerrors.Domain(operation, "session has expired").
 		WithCode(CodeSessionExpired).
 		WithMeta("session_id", sessionID)
 }
 
-// SessionRevoked creates a session revoked error.
-func SessionRevoked(operation string, sessionID string) *pkgerrors.Error {
+// SessionRevokedError creates a session revoked error.
+func SessionRevokedError(operation string, sessionID string) *pkgerrors.Error {
 	return pkgerrors.Domain(operation, "session has been revoked").
 		WithCode(CodeSessionRevoked).
 		WithMeta("session_id", sessionID)
 }
 
 // InvalidToken creates an invalid token error.
-func InvalidToken(operation string, reason string) *pkgerrors.Error {
+func InvalidTokenError(operation string, reason string) *pkgerrors.Error {
 	return pkgerrors.Unauthorized(operation, "invalid token: "+reason).
 		WithCode(CodeInvalidToken)
 }
 
-// MagicLinkExpired creates a magic link expired error.
-func MagicLinkExpired(operation string) *pkgerrors.Error {
+// InvalidSessionID creates an invalid session ID error.
+func InvalidSessionID(operation string, value string) *pkgerrors.Error {
+	return pkgerrors.Validation(operation, "invalid session ID format").
+		WithCode(CodeInvalidSessionID).
+		WithMeta("value", value)
+}
+
+// MagicLinkExpiredError creates a magic link expired error.
+func MagicLinkExpiredError(operation string) *pkgerrors.Error {
 	return pkgerrors.Domain(operation, "magic link has expired").
 		WithCode(CodeMagicLinkExpired)
 }
 
-// MagicLinkUsed creates a magic link already used error.
-func MagicLinkUsed(operation string) *pkgerrors.Error {
+// MagicLinkUsedError creates a magic link already used error.
+func MagicLinkUsedError(operation string) *pkgerrors.Error {
 	return pkgerrors.Domain(operation, "magic link has already been used").
 		WithCode(CodeMagicLinkUsed)
 }
 
-// MagicLinkInvalid creates a magic link invalid error.
-func MagicLinkInvalid(operation string, reason string) *pkgerrors.Error {
+// MagicLinkInvalidError creates a magic link invalid error.
+func MagicLinkInvalidError(operation string, reason string) *pkgerrors.Error {
 	return pkgerrors.Validation(operation, "invalid magic link: "+reason).
 		WithCode(CodeMagicLinkInvalid)
 }
 
-// MagicLinkNotFound creates a magic link not found error.
-func MagicLinkNotFound(operation string) *pkgerrors.Error {
+// MagicLinkNotFoundError creates a magic link not found error.
+func MagicLinkNotFoundError(operation string) *pkgerrors.Error {
 	return pkgerrors.NotFound(operation, "magic link").
 		WithCode(CodeMagicLinkNotFound)
 }
