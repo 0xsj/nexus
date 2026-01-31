@@ -184,7 +184,7 @@ func (m Metadata) ToMap() map[string]any {
 
 // ToJSON serializes the metadata to JSON.
 func (m Metadata) ToJSON() ([]byte, error) {
-	if m.values == nil || len(m.values) == 0 {
+	if len(m.values) == 0 {
 		return []byte("{}"), nil
 	}
 	return json.Marshal(m.values)
