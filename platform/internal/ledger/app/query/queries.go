@@ -2,6 +2,36 @@ package query
 
 import (
 	"time"
+
+	"github.com/0xsj/nexus/platform/pkg/cqrs"
+)
+
+// ============================================================================
+// Compile-time interface checks
+// ============================================================================
+
+var (
+	_ cqrs.Query = (*GetEntry)(nil)
+	_ cqrs.Query = (*GetActivity)(nil)
+	_ cqrs.Query = (*GetUserActivity)(nil)
+	_ cqrs.Query = (*GetCredentialHistory)(nil)
+	_ cqrs.Query = (*GetSubjectHistory)(nil)
+	_ cqrs.Query = (*GetVerificationLog)(nil)
+	_ cqrs.Query = (*GetActivityStats)(nil)
+)
+
+// ============================================================================
+// Query Names
+// ============================================================================
+
+const (
+	QueryNameGetEntry             = "ledger.GetEntry"
+	QueryNameGetActivity          = "ledger.GetActivity"
+	QueryNameGetUserActivity      = "ledger.GetUserActivity"
+	QueryNameGetCredentialHistory = "ledger.GetCredentialHistory"
+	QueryNameGetSubjectHistory    = "ledger.GetSubjectHistory"
+	QueryNameGetVerificationLog   = "ledger.GetVerificationLog"
+	QueryNameGetActivityStats     = "ledger.GetActivityStats"
 )
 
 // ============================================================================
@@ -11,6 +41,11 @@ import (
 // GetEntry retrieves a single audit entry by ID.
 type GetEntry struct {
 	ID string `json:"id" validate:"required"`
+}
+
+// QueryName implements cqrs.Query.
+func (q GetEntry) QueryName() string {
+	return QueryNameGetEntry
 }
 
 // ============================================================================
@@ -34,6 +69,11 @@ type GetActivity struct {
 	PageSize int `json:"page_size,omitempty"`
 }
 
+// QueryName implements cqrs.Query.
+func (q GetActivity) QueryName() string {
+	return QueryNameGetActivity
+}
+
 // GetUserActivity retrieves activity for a specific user.
 type GetUserActivity struct {
 	UserID     string    `json:"user_id" validate:"required"`
@@ -42,6 +82,11 @@ type GetUserActivity struct {
 	ToTime     time.Time `json:"to_time,omitempty"`
 	Page       int       `json:"page,omitempty"`
 	PageSize   int       `json:"page_size,omitempty"`
+}
+
+// QueryName implements cqrs.Query.
+func (q GetUserActivity) QueryName() string {
+	return QueryNameGetUserActivity
 }
 
 // ============================================================================
@@ -53,12 +98,22 @@ type GetCredentialHistory struct {
 	CredentialID string `json:"credential_id" validate:"required"`
 }
 
+// QueryName implements cqrs.Query.
+func (q GetCredentialHistory) QueryName() string {
+	return QueryNameGetCredentialHistory
+}
+
 // GetSubjectHistory retrieves the history of any subject.
 type GetSubjectHistory struct {
 	SubjectID   string `json:"subject_id" validate:"required"`
 	SubjectType string `json:"subject_type" validate:"required"`
 	Page        int    `json:"page,omitempty"`
 	PageSize    int    `json:"page_size,omitempty"`
+}
+
+// QueryName implements cqrs.Query.
+func (q GetSubjectHistory) QueryName() string {
+	return QueryNameGetSubjectHistory
 }
 
 // ============================================================================
@@ -72,6 +127,11 @@ type GetVerificationLog struct {
 	ToTime   time.Time `json:"to_time,omitempty"`
 	Page     int       `json:"page,omitempty"`
 	PageSize int       `json:"page_size,omitempty"`
+}
+
+// QueryName implements cqrs.Query.
+func (q GetVerificationLog) QueryName() string {
+	return QueryNameGetVerificationLog
 }
 
 // ============================================================================
@@ -88,6 +148,11 @@ type GetActivityStats struct {
 	// Time range
 	FromTime time.Time `json:"from_time,omitempty"`
 	ToTime   time.Time `json:"to_time,omitempty"`
+}
+
+// QueryName implements cqrs.Query.
+func (q GetActivityStats) QueryName() string {
+	return QueryNameGetActivityStats
 }
 
 // ============================================================================
