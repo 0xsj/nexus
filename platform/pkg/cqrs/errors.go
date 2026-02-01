@@ -8,15 +8,19 @@ import (
 
 // CQRS-specific error codes.
 const (
+	// Command error codes
 	CodeCommandValidation   errors.Code = "COMMAND_VALIDATION"
 	CodeCommandNotFound     errors.Code = "COMMAND_NOT_FOUND"
 	CodeCommandFailed       errors.Code = "COMMAND_FAILED"
 	CodeCommandUnauthorized errors.Code = "COMMAND_UNAUTHORIZED"
 
-	CodeQueryNotFound errors.Code = "QUERY_NOT_FOUND"
-	CodeQueryFailed   errors.Code = "QUERY_FAILED"
-	CodeQueryTimeout  errors.Code = "QUERY_TIMEOUT"
+	// Query error codes
+	CodeQueryValidation errors.Code = "QUERY_VALIDATION"
+	CodeQueryNotFound   errors.Code = "QUERY_NOT_FOUND"
+	CodeQueryFailed     errors.Code = "QUERY_FAILED"
+	CodeQueryTimeout    errors.Code = "QUERY_TIMEOUT"
 
+	// Handler error codes
 	CodeHandlerNotFound errors.Code = "HANDLER_NOT_FOUND"
 	CodeHandlerPanic    errors.Code = "HANDLER_PANIC"
 )
@@ -53,6 +57,12 @@ func ErrCommandUnauthorized(operation string, reason string) *errors.Error {
 // ============================================================================
 // Query Errors
 // ============================================================================
+
+// ErrQueryValidation creates a query validation error.
+func ErrQueryValidation(operation string, reason string) *errors.Error {
+	return errors.Validation(operation, reason).
+		WithCode(CodeQueryValidation)
+}
 
 // ErrQueryNotFound creates an error when a query handler is not found.
 func ErrQueryNotFound(operation string, queryType string) *errors.Error {
@@ -118,6 +128,17 @@ func IsCommandNotFound(err error) bool {
 	return false
 }
 
+// IsQueryValidation returns true if the error is a query validation error.
+func IsQueryValidation(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*errors.Error); ok {
+		return e.Code == CodeQueryValidation
+	}
+	return false
+}
+
 // IsQueryNotFound returns true if the error is a query not found error.
 func IsQueryNotFound(err error) bool {
 	if err == nil {
@@ -129,6 +150,17 @@ func IsQueryNotFound(err error) bool {
 	return false
 }
 
+// IsQueryTimeout returns true if the error is a query timeout error.
+func IsQueryTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*errors.Error); ok {
+		return e.Code == CodeQueryTimeout
+	}
+	return false
+}
+
 // IsHandlerNotFound returns true if the error is a handler not found error.
 func IsHandlerNotFound(err error) bool {
 	if err == nil {
@@ -136,6 +168,17 @@ func IsHandlerNotFound(err error) bool {
 	}
 	if e, ok := err.(*errors.Error); ok {
 		return e.Code == CodeHandlerNotFound
+	}
+	return false
+}
+
+// IsHandlerPanic returns true if the error is a handler panic error.
+func IsHandlerPanic(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*errors.Error); ok {
+		return e.Code == CodeHandlerPanic
 	}
 	return false
 }
