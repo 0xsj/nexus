@@ -31,6 +31,10 @@ const (
 	// Validation errors
 	CodeInvalidDataType       pkgerrors.Code = "INVALID_DATA_TYPE"
 	CodeClaimValidationFailed pkgerrors.Code = "CLAIM_VALIDATION_FAILED"
+
+	// Issuer errors (cross-context)
+	CodeIssuerNotFound pkgerrors.Code = "ISSUER_NOT_FOUND"
+	CodeIssuerInactive pkgerrors.Code = "ISSUER_INACTIVE"
 )
 
 // ============================================================================
@@ -57,6 +61,10 @@ var (
 	// Validation errors
 	ErrInvalidDataType       = errors.New("invalid data type")
 	ErrClaimValidationFailed = errors.New("claim validation failed")
+
+	// Issuer errors (cross-context)
+	ErrIssuerNotFound = errors.New("issuer not found")
+	ErrIssuerInactive = errors.New("issuer is inactive")
 )
 
 // ============================================================================
@@ -155,4 +163,18 @@ func ClaimValidationFailed(operation string, claimKey string, reason string) *pk
 	return pkgerrors.Validation(operation, "claim validation failed: "+reason).
 		WithCode(CodeClaimValidationFailed).
 		WithMeta("claim_key", claimKey)
+}
+
+// IssuerNotFound creates an issuer not found error.
+func IssuerNotFound(operation string, issuerID string) *pkgerrors.Error {
+	return pkgerrors.NotFound(operation, "issuer").
+		WithCode(CodeIssuerNotFound).
+		WithMeta("issuer_id", issuerID)
+}
+
+// IssuerInactive creates an issuer inactive error.
+func IssuerInactive(operation string, issuerID string) *pkgerrors.Error {
+	return pkgerrors.Domain(operation, "issuer is inactive and cannot register schemas").
+		WithCode(CodeIssuerInactive).
+		WithMeta("issuer_id", issuerID)
 }
