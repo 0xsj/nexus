@@ -1,466 +1,456 @@
-// Package query contains the query definitions and handlers for the Identity context.
 package query
 
 import (
+	"context"
+	"strings"
 	"time"
 
-	"github.com/0xsj/nexus/platform/pkg/cqrs"
-	"github.com/0xsj/nexus/platform/pkg/types"
+	"github.com/0xsj/nexus/platform/internal/identity/domain"
+	pkgerrors "github.com/0xsj/nexus/platform/pkg/errors"
+	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
 
 // ============================================================================
-// Query Name Constants
+// Handlers
 // ============================================================================
 
-const (
-	// User queries
-	QueryGetUser        = "identity.GetUser"
-	QueryGetUserByEmail = "identity.GetUserByEmail"
-	QueryGetUserByDID   = "identity.GetUserByDID"
-	QueryListUsers      = "identity.ListUsers"
-	QuerySearchUsers    = "identity.SearchUsers"
-	QueryGetUserProfile = "identity.GetUserProfile"
-
-	// Session queries
-	QueryGetSession            = "identity.GetSession"
-	QueryListUserSessions      = "identity.ListUserSessions"
-	QueryGetActiveSessionCount = "identity.GetActiveSessionCount"
-	QueryValidateSession       = "identity.ValidateSession"
-
-	// DID queries
-	QueryGetUserDIDs = "identity.GetUserDIDs"
-	QueryResolveDID  = "identity.ResolveDID"
-
-	// OAuth queries
-	QueryGetLinkedOAuthAccounts = "identity.GetLinkedOAuthAccounts"
-	QueryGetOAuthState          = "identity.GetOAuthState"
-)
-
-// ============================================================================
-// User Queries
-// ============================================================================
-
-// GetUser retrieves a user by ID.
-type GetUser struct {
-	UserID types.ID `json:"user_id" validate:"required"`
+// Handlers contains all query handlers for the Identity context.
+type Handlers struct {
+	userRepo       domain.UserRepository
+	sessionRepo    domain.SessionRepository
+	oauthStateRepo domain.OAuthStateRepository
+	userLookup     domain.UserLookup
+	sessionLookup  domain.SessionLookup
+	logger         log.Logger
 }
 
-// QueryName implements cqrs.Query.
-func (q GetUser) QueryName() string {
-	return QueryGetUser
-}
-
-// Validate implements cqrs.Validatable.
-func (q GetUser) Validate() error {
-	if q.UserID.IsZero() {
-		return cqrs.ErrQueryValidation("GetUser.Validate", "user_id is required")
+// NewHandlers creates a new Handlers instance.
+func NewHandlers(
+	userRepo domain.UserRepository,
+	sessionRepo domain.SessionRepository,
+	oauthStateRepo domain.OAuthStateRepository,
+	userLookup domain.UserLookup,
+	sessionLookup domain.SessionLookup,
+	logger log.Logger,
+) *Handlers {
+	return &Handlers{
+		userRepo:       userRepo,
+		sessionRepo:    sessionRepo,
+		oauthStateRepo: oauthStateRepo,
+		userLookup:     userLookup,
+		sessionLookup:  sessionLookup,
+		logger:         logger,
 	}
-	return nil
-}
-
-// GetUserResult is the result for GetUser query.
-type GetUserResult struct {
-	UserID        string             `json:"user_id"`
-	Email         string             `json:"email,omitempty"`
-	DisplayName   string             `json:"display_name"`
-	Status        string             `json:"status"`
-	PrimaryDID    string             `json:"primary_did"`
-	DIDs          []string           `json:"dids"`
-	AuthMethods   []string           `json:"auth_methods"`
-	OAuthAccounts []OAuthAccountInfo `json:"oauth_accounts,omitempty"`
-	CreatedAt     time.Time          `json:"created_at"`
-	UpdatedAt     time.Time          `json:"updated_at"`
-}
-
-// OAuthAccountInfo represents linked OAuth account information.
-type OAuthAccountInfo struct {
-	Provider   string `json:"provider"`
-	ExternalID string `json:"external_id"`
-	Email      string `json:"email,omitempty"`
-}
-
-// GetUserByEmail retrieves a user by email address.
-type GetUserByEmail struct {
-	Email types.Email `json:"email" validate:"required"`
-}
-
-// QueryName implements cqrs.Query.
-func (q GetUserByEmail) QueryName() string {
-	return QueryGetUserByEmail
-}
-
-// Validate implements cqrs.Validatable.
-func (q GetUserByEmail) Validate() error {
-	if q.Email.IsEmpty() {
-		return cqrs.ErrQueryValidation("GetUserByEmail.Validate", "email is required")
-	}
-	return nil
-}
-
-// GetUserByDID retrieves a user by DID.
-type GetUserByDID struct {
-	DID string `json:"did" validate:"required"`
-}
-
-// QueryName implements cqrs.Query.
-func (q GetUserByDID) QueryName() string {
-	return QueryGetUserByDID
-}
-
-// Validate implements cqrs.Validatable.
-func (q GetUserByDID) Validate() error {
-	if q.DID == "" {
-		return cqrs.ErrQueryValidation("GetUserByDID.Validate", "did is required")
-	}
-	return nil
-}
-
-// ListUsers lists users with pagination and filtering.
-type ListUsers struct {
-	Status   *string `json:"status" validate:"omitempty,oneof=pending active suspended deleted"`
-	PageSize int     `json:"page_size" validate:"omitempty,min=1,max=100"`
-	Cursor   *string `json:"cursor" validate:"omitempty"`
-}
-
-// QueryName implements cqrs.Query.
-func (q ListUsers) QueryName() string {
-	return QueryListUsers
-}
-
-// Validate implements cqrs.Validatable.
-func (q ListUsers) Validate() error {
-	if q.PageSize < 0 {
-		return cqrs.ErrQueryValidation("ListUsers.Validate", "page_size must be non-negative")
-	}
-	if q.PageSize > 100 {
-		return cqrs.ErrQueryValidation("ListUsers.Validate", "page_size must be 100 or less")
-	}
-	return nil
-}
-
-// ListUsersResult is the result for ListUsers query.
-type ListUsersResult struct {
-	Users      []UserSummary `json:"users"`
-	NextCursor *string       `json:"next_cursor,omitempty"`
-	TotalCount int           `json:"total_count"`
-}
-
-// UserSummary is a lightweight user representation for lists.
-type UserSummary struct {
-	UserID      string    `json:"user_id"`
-	Email       string    `json:"email,omitempty"`
-	DisplayName string    `json:"display_name"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-// SearchUsers searches users by display name or email.
-type SearchUsers struct {
-	Query    string  `json:"query" validate:"required,min=1,max=100"`
-	PageSize int     `json:"page_size" validate:"omitempty,min=1,max=100"`
-	Cursor   *string `json:"cursor" validate:"omitempty"`
-}
-
-// QueryName implements cqrs.Query.
-func (q SearchUsers) QueryName() string {
-	return QuerySearchUsers
-}
-
-// Validate implements cqrs.Validatable.
-func (q SearchUsers) Validate() error {
-	if q.Query == "" {
-		return cqrs.ErrQueryValidation("SearchUsers.Validate", "query is required")
-	}
-	if len(q.Query) > 100 {
-		return cqrs.ErrQueryValidation("SearchUsers.Validate", "query must be 100 characters or less")
-	}
-	if q.PageSize < 0 {
-		return cqrs.ErrQueryValidation("SearchUsers.Validate", "page_size must be non-negative")
-	}
-	if q.PageSize > 100 {
-		return cqrs.ErrQueryValidation("SearchUsers.Validate", "page_size must be 100 or less")
-	}
-	return nil
-}
-
-// GetUserProfile retrieves a user's public profile.
-type GetUserProfile struct {
-	UserID types.ID `json:"user_id" validate:"required"`
-}
-
-// QueryName implements cqrs.Query.
-func (q GetUserProfile) QueryName() string {
-	return QueryGetUserProfile
-}
-
-// Validate implements cqrs.Validatable.
-func (q GetUserProfile) Validate() error {
-	if q.UserID.IsZero() {
-		return cqrs.ErrQueryValidation("GetUserProfile.Validate", "user_id is required")
-	}
-	return nil
-}
-
-// GetUserProfileResult is the result for GetUserProfile query.
-type GetUserProfileResult struct {
-	UserID      string    `json:"user_id"`
-	DisplayName string    `json:"display_name"`
-	PrimaryDID  string    `json:"primary_did"`
-	CreatedAt   time.Time `json:"created_at"`
-	// Public profile excludes sensitive data like email
 }
 
 // ============================================================================
-// Session Queries
+// User Query Handlers
 // ============================================================================
 
-// GetSession retrieves a session by ID.
-type GetSession struct {
-	SessionID types.ID `json:"session_id" validate:"required"`
-}
+// HandleGetUser handles the GetUser query.
+func (h *Handlers) HandleGetUser(ctx context.Context, q GetUser) (*UserView, error) {
+	const op = "Handlers.HandleGetUser"
 
-// QueryName implements cqrs.Query.
-func (q GetSession) QueryName() string {
-	return QueryGetSession
-}
+	userID := domain.UserIDFromTypesID(q.UserID)
 
-// Validate implements cqrs.Validatable.
-func (q GetSession) Validate() error {
-	if q.SessionID.IsZero() {
-		return cqrs.ErrQueryValidation("GetSession.Validate", "session_id is required")
+	user, err := h.userRepo.Get(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	return nil
+
+	return h.mapUserToView(user), nil
 }
 
-// GetSessionResult is the result for GetSession query.
-type GetSessionResult struct {
-	SessionID  string    `json:"session_id"`
-	UserID     string    `json:"user_id"`
-	AuthMethod string    `json:"auth_method"`
-	Status     string    `json:"status"`
-	IPAddress  string    `json:"ip_address,omitempty"`
-	UserAgent  string    `json:"user_agent,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	ExpiresAt  time.Time `json:"expires_at"`
-	LastUsedAt time.Time `json:"last_used_at"`
-}
+// HandleGetUserByEmail handles the GetUserByEmail query.
+func (h *Handlers) HandleGetUserByEmail(ctx context.Context, q GetUserByEmail) (*UserView, error) {
+	const op = "Handlers.HandleGetUserByEmail"
 
-// ListUserSessions lists all sessions for a user.
-type ListUserSessions struct {
-	UserID     types.ID `json:"user_id" validate:"required"`
-	ActiveOnly bool     `json:"active_only"`
-	PageSize   int      `json:"page_size" validate:"omitempty,min=1,max=100"`
-	Cursor     *string  `json:"cursor" validate:"omitempty"`
-}
-
-// QueryName implements cqrs.Query.
-func (q ListUserSessions) QueryName() string {
-	return QueryListUserSessions
-}
-
-// Validate implements cqrs.Validatable.
-func (q ListUserSessions) Validate() error {
-	if q.UserID.IsZero() {
-		return cqrs.ErrQueryValidation("ListUserSessions.Validate", "user_id is required")
+	userID, err := h.userLookup.GetUserIDByEmail(ctx, q.Email)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	if q.PageSize < 0 {
-		return cqrs.ErrQueryValidation("ListUserSessions.Validate", "page_size must be non-negative")
+
+	user, err := h.userRepo.Get(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	if q.PageSize > 100 {
-		return cqrs.ErrQueryValidation("ListUserSessions.Validate", "page_size must be 100 or less")
+
+	return h.mapUserToView(user), nil
+}
+
+// HandleGetUserByDID handles the GetUserByDID query.
+func (h *Handlers) HandleGetUserByDID(ctx context.Context, q GetUserByDID) (*UserView, error) {
+	const op = "Handlers.HandleGetUserByDID"
+
+	userID, err := h.userLookup.GetUserIDByDID(ctx, q.DID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	return nil
-}
 
-// ListUserSessionsResult is the result for ListUserSessions query.
-type ListUserSessionsResult struct {
-	Sessions   []SessionSummary `json:"sessions"`
-	NextCursor *string          `json:"next_cursor,omitempty"`
-	TotalCount int              `json:"total_count"`
-}
-
-// SessionSummary is a lightweight session representation for lists.
-type SessionSummary struct {
-	SessionID  string    `json:"session_id"`
-	AuthMethod string    `json:"auth_method"`
-	Status     string    `json:"status"`
-	IPAddress  string    `json:"ip_address,omitempty"`
-	UserAgent  string    `json:"user_agent,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	ExpiresAt  time.Time `json:"expires_at"`
-	LastUsedAt time.Time `json:"last_used_at"`
-}
-
-// GetActiveSessionCount returns the count of active sessions for a user.
-type GetActiveSessionCount struct {
-	UserID types.ID `json:"user_id" validate:"required"`
-}
-
-// QueryName implements cqrs.Query.
-func (q GetActiveSessionCount) QueryName() string {
-	return QueryGetActiveSessionCount
-}
-
-// Validate implements cqrs.Validatable.
-func (q GetActiveSessionCount) Validate() error {
-	if q.UserID.IsZero() {
-		return cqrs.ErrQueryValidation("GetActiveSessionCount.Validate", "user_id is required")
+	user, err := h.userRepo.Get(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	return nil
+
+	return h.mapUserToView(user), nil
 }
 
-// GetActiveSessionCountResult is the result for GetActiveSessionCount query.
-type GetActiveSessionCountResult struct {
-	UserID string `json:"user_id"`
-	Count  int    `json:"count"`
-}
+// HandleGetUserProfile handles the GetUserProfile query.
+func (h *Handlers) HandleGetUserProfile(ctx context.Context, q GetUserProfile) (*UserProfileView, error) {
+	const op = "Handlers.HandleGetUserProfile"
 
-// ValidateSession validates a session token and returns session info if valid.
-type ValidateSession struct {
-	SessionID types.ID `json:"session_id" validate:"required"`
-	Token     string   `json:"token" validate:"required"`
-}
+	userID := domain.UserIDFromTypesID(q.UserID)
 
-// QueryName implements cqrs.Query.
-func (q ValidateSession) QueryName() string {
-	return QueryValidateSession
-}
-
-// Validate implements cqrs.Validatable.
-func (q ValidateSession) Validate() error {
-	if q.SessionID.IsZero() {
-		return cqrs.ErrQueryValidation("ValidateSession.Validate", "session_id is required")
+	user, err := h.userRepo.Get(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	if q.Token == "" {
-		return cqrs.ErrQueryValidation("ValidateSession.Validate", "token is required")
-	}
-	return nil
-}
 
-// ValidateSessionResult is the result for ValidateSession query.
-type ValidateSessionResult struct {
-	Valid      bool      `json:"valid"`
-	SessionID  string    `json:"session_id,omitempty"`
-	UserID     string    `json:"user_id,omitempty"`
-	AuthMethod string    `json:"auth_method,omitempty"`
-	ExpiresAt  time.Time `json:"expires_at,omitempty"`
-	Reason     string    `json:"reason,omitempty"` // If not valid, explains why
+	if !user.IsActive() {
+		return nil, domain.UserNotFound(op, userID.String())
+	}
+
+	return &UserProfileView{
+		UserID:      user.ID().String(),
+		DisplayName: user.DisplayName().String(),
+		PrimaryDID:  user.PrimaryDID(),
+		CreatedAt:   user.CreatedAt(),
+	}, nil
 }
 
 // ============================================================================
-// DID Queries
+// Session Query Handlers
 // ============================================================================
 
-// GetUserDIDs retrieves all DIDs associated with a user.
-type GetUserDIDs struct {
-	UserID types.ID `json:"user_id" validate:"required"`
-}
+// HandleGetSession handles the GetSession query.
+func (h *Handlers) HandleGetSession(ctx context.Context, q GetSession) (*SessionView, error) {
+	const op = "Handlers.HandleGetSession"
 
-// QueryName implements cqrs.Query.
-func (q GetUserDIDs) QueryName() string {
-	return QueryGetUserDIDs
-}
+	sessionID := domain.SessionIDFromTypesID(q.SessionID)
 
-// Validate implements cqrs.Validatable.
-func (q GetUserDIDs) Validate() error {
-	if q.UserID.IsZero() {
-		return cqrs.ErrQueryValidation("GetUserDIDs.Validate", "user_id is required")
+	session, err := h.sessionRepo.Get(ctx, sessionID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	return nil
+
+	return h.mapSessionToView(session), nil
 }
 
-// GetUserDIDsResult is the result for GetUserDIDs query.
-type GetUserDIDsResult struct {
-	UserID     string    `json:"user_id"`
-	PrimaryDID string    `json:"primary_did"`
-	DIDs       []DIDInfo `json:"dids"`
-}
+// HandleListUserSessions handles the ListUserSessions query.
+func (h *Handlers) HandleListUserSessions(ctx context.Context, q ListUserSessions) (*SessionListView, error) {
+	const op = "Handlers.HandleListUserSessions"
 
-// DIDInfo represents information about a DID.
-type DIDInfo struct {
-	DID       string    `json:"did"`
-	Method    string    `json:"method"` // e.g., "key", "pkh", "web"
-	IsPrimary bool      `json:"is_primary"`
-	AddedAt   time.Time `json:"added_at"`
-}
+	userID := domain.UserIDFromTypesID(q.UserID)
 
-// ResolveDID resolves a DID to find the associated user.
-type ResolveDID struct {
-	DID string `json:"did" validate:"required"`
-}
-
-// QueryName implements cqrs.Query.
-func (q ResolveDID) QueryName() string {
-	return QueryResolveDID
-}
-
-// Validate implements cqrs.Validatable.
-func (q ResolveDID) Validate() error {
-	if q.DID == "" {
-		return cqrs.ErrQueryValidation("ResolveDID.Validate", "did is required")
+	sessions, err := h.sessionLookup.GetActiveSessionsForUser(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	return nil
+
+	summaries := make([]SessionSummaryView, 0, len(sessions))
+	for _, session := range sessions {
+		if q.ActiveOnly && !session.IsActive() {
+			continue
+		}
+		summaries = append(summaries, SessionSummaryView{
+			SessionID:  session.ID().String(),
+			AuthMethod: session.AuthMethod().String(),
+			Status:     session.Status().String(),
+			IPAddress:  session.IPAddress(),
+			UserAgent:  session.UserAgent(),
+			CreatedAt:  session.CreatedAt(),
+			ExpiresAt:  session.ExpiresAt(),
+			LastUsedAt: session.UpdatedAt(),
+		})
+	}
+
+	return &SessionListView{
+		Sessions:   summaries,
+		NextCursor: nil,
+		TotalCount: len(summaries),
+	}, nil
 }
 
-// ResolveDIDResult is the result for ResolveDID query.
-type ResolveDIDResult struct {
-	DID         string `json:"did"`
-	UserID      string `json:"user_id"`
-	DisplayName string `json:"display_name"`
-	IsPrimary   bool   `json:"is_primary"`
+// HandleGetActiveSessionCount handles the GetActiveSessionCount query.
+func (h *Handlers) HandleGetActiveSessionCount(ctx context.Context, q GetActiveSessionCount) (*SessionCountView, error) {
+	const op = "Handlers.HandleGetActiveSessionCount"
+
+	userID := domain.UserIDFromTypesID(q.UserID)
+
+	count, err := h.sessionLookup.CountActiveSessionsForUser(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	return &SessionCountView{
+		UserID: userID.String(),
+		Count:  count,
+	}, nil
+}
+
+// HandleValidateSession handles the ValidateSession query.
+func (h *Handlers) HandleValidateSession(ctx context.Context, q ValidateSession) (*SessionValidationView, error) {
+	const op = "Handlers.HandleValidateSession"
+
+	sessionID := domain.SessionIDFromTypesID(q.SessionID)
+
+	session, err := h.sessionRepo.Get(ctx, sessionID)
+	if err != nil {
+		if pkgerrors.Is(err, pkgerrors.ErrNotFound) {
+			return &SessionValidationView{
+				Valid:  false,
+				Reason: "session not found",
+			}, nil
+		}
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	token, err := domain.ParseToken(q.Token)
+	if err != nil {
+		return &SessionValidationView{
+			Valid:  false,
+			Reason: "invalid token format",
+		}, nil
+	}
+
+	if !session.VerifyToken(token) {
+		return &SessionValidationView{
+			Valid:  false,
+			Reason: "token mismatch",
+		}, nil
+	}
+
+	if !session.IsActive() {
+		return &SessionValidationView{
+			Valid:  false,
+			Reason: "session is " + session.Status().String(),
+		}, nil
+	}
+
+	if session.IsExpired() {
+		return &SessionValidationView{
+			Valid:  false,
+			Reason: "session expired",
+		}, nil
+	}
+
+	user, err := h.userRepo.Get(ctx, session.UserID())
+	if err != nil {
+		if pkgerrors.Is(err, pkgerrors.ErrNotFound) {
+			return &SessionValidationView{
+				Valid:  false,
+				Reason: "user not found",
+			}, nil
+		}
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	if !user.CanAuthenticate() {
+		return &SessionValidationView{
+			Valid:  false,
+			Reason: "user is " + user.Status().String(),
+		}, nil
+	}
+
+	return &SessionValidationView{
+		Valid:      true,
+		SessionID:  session.ID().String(),
+		UserID:     session.UserID().String(),
+		AuthMethod: session.AuthMethod().String(),
+		ExpiresAt:  session.ExpiresAt(),
+	}, nil
 }
 
 // ============================================================================
-// OAuth Queries
+// DID Query Handlers
 // ============================================================================
 
-// GetLinkedOAuthAccounts retrieves all OAuth accounts linked to a user.
-type GetLinkedOAuthAccounts struct {
-	UserID types.ID `json:"user_id" validate:"required"`
-}
+// HandleGetUserDIDs handles the GetUserDIDs query.
+func (h *Handlers) HandleGetUserDIDs(ctx context.Context, q GetUserDIDs) (*UserDIDsView, error) {
+	const op = "Handlers.HandleGetUserDIDs"
 
-// QueryName implements cqrs.Query.
-func (q GetLinkedOAuthAccounts) QueryName() string {
-	return QueryGetLinkedOAuthAccounts
-}
+	userID := domain.UserIDFromTypesID(q.UserID)
 
-// Validate implements cqrs.Validatable.
-func (q GetLinkedOAuthAccounts) Validate() error {
-	if q.UserID.IsZero() {
-		return cqrs.ErrQueryValidation("GetLinkedOAuthAccounts.Validate", "user_id is required")
+	user, err := h.userRepo.Get(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
 	}
-	return nil
-}
 
-// GetLinkedOAuthAccountsResult is the result for GetLinkedOAuthAccounts query.
-type GetLinkedOAuthAccountsResult struct {
-	UserID   string             `json:"user_id"`
-	Accounts []OAuthAccountInfo `json:"accounts"`
-}
+	dids := user.DIDs()
+	primaryDID := user.PrimaryDID()
+	didViews := make([]DIDView, len(dids))
 
-// GetOAuthState retrieves an OAuth state record for validation.
-type GetOAuthState struct {
-	State string `json:"state" validate:"required"`
-}
-
-// QueryName implements cqrs.Query.
-func (q GetOAuthState) QueryName() string {
-	return QueryGetOAuthState
-}
-
-// Validate implements cqrs.Validatable.
-func (q GetOAuthState) Validate() error {
-	if q.State == "" {
-		return cqrs.ErrQueryValidation("GetOAuthState.Validate", "state is required")
+	for i, did := range dids {
+		didViews[i] = DIDView{
+			DID:       did,
+			Method:    extractDIDMethod(did),
+			IsPrimary: did == primaryDID,
+			AddedAt:   user.CreatedAt(),
+		}
 	}
-	return nil
+
+	return &UserDIDsView{
+		UserID:     userID.String(),
+		PrimaryDID: primaryDID,
+		DIDs:       didViews,
+	}, nil
 }
 
-// GetOAuthStateResult is the result for GetOAuthState query.
-type GetOAuthStateResult struct {
-	State       string    `json:"state"`
-	Provider    string    `json:"provider"`
-	RedirectURL string    `json:"redirect_url"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	Valid       bool      `json:"valid"`
+// HandleResolveDID handles the ResolveDID query.
+func (h *Handlers) HandleResolveDID(ctx context.Context, q ResolveDID) (*DIDResolutionView, error) {
+	const op = "Handlers.HandleResolveDID"
+
+	userID, err := h.userLookup.GetUserIDByDID(ctx, q.DID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	user, err := h.userRepo.Get(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	return &DIDResolutionView{
+		DID:         q.DID,
+		UserID:      userID.String(),
+		DisplayName: user.DisplayName().String(),
+		IsPrimary:   q.DID == user.PrimaryDID(),
+	}, nil
+}
+
+// ============================================================================
+// OAuth Query Handlers
+// ============================================================================
+
+// HandleGetLinkedOAuthAccounts handles the GetLinkedOAuthAccounts query.
+func (h *Handlers) HandleGetLinkedOAuthAccounts(ctx context.Context, q GetLinkedOAuthAccounts) (*LinkedOAuthAccountsView, error) {
+	const op = "Handlers.HandleGetLinkedOAuthAccounts"
+
+	userID := domain.UserIDFromTypesID(q.UserID)
+
+	user, err := h.userRepo.Get(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	links := user.OAuthLinks()
+	accounts := make([]OAuthAccountView, len(links))
+
+	for i, link := range links {
+		accounts[i] = OAuthAccountView{
+			Provider:   link.Provider().String(),
+			ExternalID: link.ExternalID(),
+			Email:      "",
+		}
+	}
+
+	return &LinkedOAuthAccountsView{
+		UserID:   userID.String(),
+		Accounts: accounts,
+	}, nil
+}
+
+// HandleGetOAuthState handles the GetOAuthState query.
+func (h *Handlers) HandleGetOAuthState(ctx context.Context, q GetOAuthState) (*OAuthStateView, error) {
+	const op = "Handlers.HandleGetOAuthState"
+
+	record, err := h.oauthStateRepo.GetByState(ctx, q.State)
+	if err != nil {
+		if pkgerrors.Is(err, pkgerrors.ErrNotFound) {
+			return &OAuthStateView{
+				State: q.State,
+				Valid: false,
+			}, nil
+		}
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	expiresAt := time.Unix(record.ExpiresAt, 0)
+	valid := time.Now().Before(expiresAt)
+
+	return &OAuthStateView{
+		State:       record.State,
+		Provider:    record.Provider,
+		RedirectURL: record.RedirectURL,
+		ExpiresAt:   expiresAt,
+		Valid:       valid,
+	}, nil
+}
+
+// ============================================================================
+// Mapping Helpers
+// ============================================================================
+
+// mapUserToView maps a User aggregate to UserView.
+func (h *Handlers) mapUserToView(user *domain.User) *UserView {
+	links := user.OAuthLinks()
+	oauthAccounts := make([]OAuthAccountView, len(links))
+	for i, link := range links {
+		oauthAccounts[i] = OAuthAccountView{
+			Provider:   link.Provider().String(),
+			ExternalID: link.ExternalID(),
+			Email:      "",
+		}
+	}
+
+	authMethods := h.deriveAuthMethods(user)
+
+	return &UserView{
+		UserID:        user.ID().String(),
+		Email:         user.Email().String(),
+		DisplayName:   user.DisplayName().String(),
+		Status:        user.Status().String(),
+		PrimaryDID:    user.PrimaryDID(),
+		DIDs:          user.DIDs(),
+		AuthMethods:   authMethods,
+		OAuthAccounts: oauthAccounts,
+		CreatedAt:     user.CreatedAt(),
+		UpdatedAt:     user.UpdatedAt(),
+	}
+}
+
+// deriveAuthMethods determines available auth methods based on user data.
+func (h *Handlers) deriveAuthMethods(user *domain.User) []string {
+	methods := make([]string, 0, 3)
+
+	if !user.Email().IsEmpty() {
+		methods = append(methods, domain.AuthMethodMagicLink.String())
+	}
+
+	for _, did := range user.DIDs() {
+		if strings.HasPrefix(did, "did:pkh:") {
+			methods = append(methods, domain.AuthMethodWallet.String())
+			break
+		}
+	}
+
+	if len(user.OAuthLinks()) > 0 {
+		methods = append(methods, domain.AuthMethodOAuth.String())
+	}
+
+	return methods
+}
+
+// mapSessionToView maps a Session aggregate to SessionView.
+func (h *Handlers) mapSessionToView(session *domain.Session) *SessionView {
+	return &SessionView{
+		SessionID:  session.ID().String(),
+		UserID:     session.UserID().String(),
+		AuthMethod: session.AuthMethod().String(),
+		Status:     session.Status().String(),
+		IPAddress:  session.IPAddress(),
+		UserAgent:  session.UserAgent(),
+		CreatedAt:  session.CreatedAt(),
+		ExpiresAt:  session.ExpiresAt(),
+		LastUsedAt: session.UpdatedAt(),
+	}
+}
+
+// extractDIDMethod extracts the method from a DID string.
+func extractDIDMethod(did string) string {
+	parts := strings.SplitN(did, ":", 3)
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+	return "unknown"
 }
