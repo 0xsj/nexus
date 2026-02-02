@@ -25,7 +25,7 @@ func (r *RegisterWithEmailRequest) Validate() error {
 // RegisterWithWalletRequest is the request to register a new user with a wallet.
 type RegisterWithWalletRequest struct {
 	Address     string `json:"address"`
-	ChainID     string `json:"chain_id"`
+	ChainID     string `json:"chain_id,omitempty"`
 	Message     string `json:"message"`
 	Signature   string `json:"signature"`
 	DisplayName string `json:"display_name,omitempty"`
@@ -169,15 +169,13 @@ func (r *RefreshSessionRequest) Validate() error {
 
 // RevokeSessionRequest is the request to revoke a session.
 type RevokeSessionRequest struct {
-	SessionID string `json:"session_id"`
+	SessionID string `json:"session_id,omitempty"`
 	Reason    string `json:"reason,omitempty"`
 }
 
 // Validate validates the request.
 func (r *RevokeSessionRequest) Validate() error {
-	if r.SessionID == "" {
-		return NewValidationError("session_id is required")
-	}
+	// SessionID is optional - if not provided, revoke current session
 	return nil
 }
 
@@ -273,15 +271,6 @@ func (r *UnlinkOAuthRequest) Validate() error {
 }
 
 // ============================================================================
-// Query Requests
-// ============================================================================
-
-// ListSessionsRequest is the request to list user sessions.
-type ListSessionsRequest struct {
-	ActiveOnly bool `json:"active_only,omitempty"`
-}
-
-// ============================================================================
 // Validation Interface
 // ============================================================================
 
@@ -300,4 +289,14 @@ type RequestMetadata struct {
 	UserAgent   string
 	RequestID   string
 	RequestedAt time.Time
+}
+
+// NewRequestMetadata creates request metadata with current time.
+func NewRequestMetadata(ipAddress, userAgent, requestID string) RequestMetadata {
+	return RequestMetadata{
+		IPAddress:   ipAddress,
+		UserAgent:   userAgent,
+		RequestID:   requestID,
+		RequestedAt: time.Now().UTC(),
+	}
 }
