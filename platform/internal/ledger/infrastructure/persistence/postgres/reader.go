@@ -64,7 +64,7 @@ func (r *Reader) List(ctx context.Context, filter query.ListFilter) (*query.Acti
 	offset := (page - 1) * pageSize
 
 	params := generated.ListEntriesParams{
-		EventTypes:  filter.EventTypes,
+		EventTypes:  emptyIfNil(filter.EventTypes),
 		ActorID:     filter.ActorID,
 		ActorType:   filter.ActorType,
 		SubjectID:   filter.SubjectID,
@@ -82,7 +82,7 @@ func (r *Reader) List(ctx context.Context, filter query.ListFilter) (*query.Acti
 	}
 
 	countParams := generated.CountEntriesParams{
-		EventTypes:  filter.EventTypes,
+		EventTypes:  emptyIfNil(filter.EventTypes),
 		ActorID:     filter.ActorID,
 		ActorType:   filter.ActorType,
 		SubjectID:   filter.SubjectID,
@@ -116,7 +116,7 @@ func (r *Reader) GetBySubject(ctx context.Context, filter query.SubjectFilter) (
 	params := generated.GetEntriesBySubjectParams{
 		SubjectID:   filter.SubjectID,
 		SubjectType: filter.SubjectType,
-		EventTypes:  filter.EventTypes,
+		EventTypes:  emptyIfNil(filter.EventTypes),
 		FromTime:    zeroTimeIfEmpty(filter.FromTime),
 		ToTime:      zeroTimeIfEmpty(filter.ToTime),
 		PageOffset:  int32(offset),
@@ -131,7 +131,7 @@ func (r *Reader) GetBySubject(ctx context.Context, filter query.SubjectFilter) (
 	countParams := generated.CountEntriesBySubjectParams{
 		SubjectID:   filter.SubjectID,
 		SubjectType: filter.SubjectType,
-		EventTypes:  filter.EventTypes,
+		EventTypes:  emptyIfNil(filter.EventTypes),
 		FromTime:    zeroTimeIfEmpty(filter.FromTime),
 		ToTime:      zeroTimeIfEmpty(filter.ToTime),
 	}
@@ -159,7 +159,7 @@ func (r *Reader) GetByActor(ctx context.Context, filter query.ActorFilter) (*que
 	params := generated.GetEntriesByActorParams{
 		ActorID:    filter.ActorID,
 		ActorType:  filter.ActorType,
-		EventTypes: filter.EventTypes,
+		EventTypes: emptyIfNil(filter.EventTypes),
 		FromTime:   zeroTimeIfEmpty(filter.FromTime),
 		ToTime:     zeroTimeIfEmpty(filter.ToTime),
 		PageOffset: int32(offset),
@@ -174,7 +174,7 @@ func (r *Reader) GetByActor(ctx context.Context, filter query.ActorFilter) (*que
 	countParams := generated.CountEntriesByActorParams{
 		ActorID:    filter.ActorID,
 		ActorType:  filter.ActorType,
-		EventTypes: filter.EventTypes,
+		EventTypes: emptyIfNil(filter.EventTypes),
 		FromTime:   zeroTimeIfEmpty(filter.FromTime),
 		ToTime:     zeroTimeIfEmpty(filter.ToTime),
 	}
@@ -291,4 +291,14 @@ func zeroTimeIfEmpty(t time.Time) time.Time {
 		return time.Time{}
 	}
 	return t
+}
+
+// emptyIfNil ensures a nil slice becomes an empty slice.
+// PostgreSQL CARDINALITY(NULL) returns NULL, not 0, which breaks our
+// "empty means match all" logic in queries.
+func emptyIfNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }

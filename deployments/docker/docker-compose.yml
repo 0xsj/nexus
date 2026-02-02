@@ -110,7 +110,7 @@ services:
     image: redis:7-alpine
     container_name: nexus-redis
     ports:
-      - "6390:6379"
+      - "6391:6379"
     command: redis-server --appendonly yes
     volumes:
       - nexus-redis-data:/data

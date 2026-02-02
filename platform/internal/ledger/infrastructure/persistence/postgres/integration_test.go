@@ -50,7 +50,6 @@ func TestWriter_Append(t *testing.T) {
 		actor,
 		subject,
 		domain.NewMetadata().Set("reason", "test"),
-		"",
 	)
 	if err != nil {
 		t.Fatalf("failed to create entry: %v", err)
@@ -108,7 +107,6 @@ func TestWriter_AppendBatch(t *testing.T) {
 			actor,
 			subject,
 			domain.NewMetadata(),
-			"",
 		)
 		if err != nil {
 			t.Fatalf("failed to create entry %d: %v", i, err)
@@ -415,7 +413,7 @@ func TestReader_List_FilterByTimeRange(t *testing.T) {
 	reader := NewReader(db.queries)
 	ctx := context.Background()
 
-	// Insert entries at different times
+	// Insert entries at different times (days 0-4)
 	baseTime := time.Date(2024, 6, 15, 12, 0, 0, 0, time.UTC)
 	for i := 0; i < 5; i++ {
 		params := newEntryBuilder().
@@ -426,9 +424,10 @@ func TestReader_List_FilterByTimeRange(t *testing.T) {
 		db.insertTestEntry(t, params)
 	}
 
-	// Filter by time range (days 1-3)
-	fromTime := baseTime.Add(24 * time.Hour)
-	toTime := baseTime.Add(4 * 24 * time.Hour)
+	// Filter: fromTime >= day 1, toTime <= day 3
+	// Should match days 1, 2, 3 (3 entries)
+	fromTime := baseTime.Add(24 * time.Hour)   // Start of day 1
+	toTime := baseTime.Add(3 * 24 * time.Hour) // Start of day 3
 
 	activity, err := reader.List(ctx, query.ListFilter{
 		FromTime: fromTime,
@@ -439,6 +438,7 @@ func TestReader_List_FilterByTimeRange(t *testing.T) {
 		t.Fatalf("List() error = %v", err)
 	}
 
+	// Days 1, 2, 3 = 3 entries
 	if activity.TotalCount != 3 {
 		t.Errorf("TotalCount mismatch: got %v, want %v", activity.TotalCount, 3)
 	}
@@ -627,30 +627,32 @@ func TestReader_GetVerificationLog(t *testing.T) {
 	reader := NewReader(db.queries)
 	ctx := context.Background()
 
-	// Insert verification events for target user
+	// The verification log query is complex - it looks for:
+	// 1. Entries where actor_type = 'external_verifier' and subject_type = 'credential'
+	// 2. Where the credential (subject_id) has entries with actor_id = user_id and actor_type = 'user'
+
+	// First, create entries linking user to credentials (user owns these credentials)
 	for i := 0; i < 3; i++ {
-		outcome := "success"
-		if i == 1 {
-			outcome = "failed"
-		}
 		params := newEntryBuilder().
 			withID(uuid.New().String()).
-			withEventType("verification.completed").
+			withEventType("credential.issued").
 			withActor("user-target", "user").
 			withSubject("cred-"+string(rune('A'+i)), "credential").
-			withMetadata("outcome", outcome).
 			build(t)
 		db.insertTestEntry(t, params)
 	}
 
-	// Insert for different user
-	params := newEntryBuilder().
-		withID(uuid.New().String()).
-		withEventType("verification.completed").
-		withActor("user-other", "user").
-		withSubject("cred-X", "credential").
-		build(t)
-	db.insertTestEntry(t, params)
+	// Then, create external verifier entries for those credentials
+	for i := 0; i < 3; i++ {
+		params := newEntryBuilder().
+			withID(uuid.New().String()).
+			withEventType("verification.completed").
+			withActor("verifier-xyz", "external_verifier").
+			withSubject("cred-"+string(rune('A'+i)), "credential").
+			withMetadata("outcome", "success").
+			build(t)
+		db.insertTestEntry(t, params)
+	}
 
 	// Get verification log
 	log, err := reader.GetVerificationLog(ctx, query.VerificationLogFilter{
@@ -713,17 +715,14 @@ func TestReader_List_WithContextID(t *testing.T) {
 // ============================================================================
 
 func isNotFoundError(err error) bool {
-	// Check if the error message contains "not found"
-	return err != nil && (err.Error() == "entry not found" ||
-		contains(err.Error(), "not found") ||
-		contains(err.Error(), "LEDGER_ENTRY_NOT_FOUND"))
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return contains(errStr, "not found") || contains(errStr, "LEDGER_ENTRY_NOT_FOUND")
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
 			return true

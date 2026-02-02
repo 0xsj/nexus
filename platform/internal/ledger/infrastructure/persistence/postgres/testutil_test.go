@@ -4,11 +4,11 @@ package postgres
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	generated "github.com/0xsj/nexus/platform/internal/ledger/infrastructure/persistence/postgres/generated"
@@ -19,7 +19,8 @@ import (
 // ============================================================================
 
 const (
-	defaultTestDSN = "postgres://postgres:postgres@localhost:5432/nexus_test?sslmode=disable"
+	// Default DSN matches docker-compose.yaml (port 5439 externally)
+	defaultTestDSN = "postgres://nexus:nexus@localhost:5439/nexus?sslmode=disable"
 )
 
 func getTestDSN() string {
@@ -48,7 +49,7 @@ func setupTestDB(t *testing.T) *testDB {
 
 	pool, err := pgxpool.New(ctx, getTestDSN())
 	if err != nil {
-		t.Fatalf("failed to connect to test database: %v", err)
+		t.Fatalf("failed to connect to test database: %v\nDSN: %s\nMake sure docker is running: make docker-up && make migrate-ledger", err, getTestDSN())
 	}
 
 	// Verify connection
@@ -57,10 +58,21 @@ func setupTestDB(t *testing.T) *testDB {
 		t.Fatalf("failed to ping test database: %v", err)
 	}
 
-	// Run schema migration
-	if err := runMigrations(ctx, pool); err != nil {
+	// Verify ledger_entries table exists
+	var exists bool
+	err = pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_name = 'ledger_entries'
+		)
+	`).Scan(&exists)
+	if err != nil {
 		pool.Close()
-		t.Fatalf("failed to run migrations: %v", err)
+		t.Fatalf("failed to check for ledger_entries table: %v", err)
+	}
+	if !exists {
+		pool.Close()
+		t.Fatalf("ledger_entries table does not exist. Run: make migrate-ledger")
 	}
 
 	return &testDB{
@@ -89,77 +101,43 @@ func (db *testDB) cleanup(t *testing.T) {
 	}
 }
 
-// runMigrations applies the schema to the test database.
-func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	schema := `
-		CREATE TABLE IF NOT EXISTS ledger_entries (
-			id UUID PRIMARY KEY,
-			occurred_at TIMESTAMPTZ NOT NULL,
-			recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			event_type VARCHAR(255) NOT NULL,
-			actor_id VARCHAR(255) NOT NULL,
-			actor_type VARCHAR(50) NOT NULL,
-			subject_id VARCHAR(255) NOT NULL,
-			subject_type VARCHAR(50) NOT NULL,
-			metadata JSONB NOT NULL DEFAULT '{}',
-			context_id VARCHAR(255)
-		);
-
-		CREATE INDEX IF NOT EXISTS idx_ledger_entries_occurred_at 
-		ON ledger_entries (occurred_at DESC);
-
-		CREATE INDEX IF NOT EXISTS idx_ledger_entries_actor 
-		ON ledger_entries (actor_id, actor_type, occurred_at DESC);
-
-		CREATE INDEX IF NOT EXISTS idx_ledger_entries_subject 
-		ON ledger_entries (subject_id, subject_type, occurred_at DESC);
-
-		CREATE INDEX IF NOT EXISTS idx_ledger_entries_event_type 
-		ON ledger_entries (event_type, occurred_at DESC);
-
-		CREATE INDEX IF NOT EXISTS idx_ledger_entries_context_id 
-		ON ledger_entries (context_id) 
-		WHERE context_id IS NOT NULL;
-
-		CREATE INDEX IF NOT EXISTS idx_ledger_entries_subject_event_type 
-		ON ledger_entries (subject_id, subject_type, event_type, occurred_at DESC);
-	`
-
-	_, err := pool.Exec(ctx, schema)
-	return err
-}
-
 // ============================================================================
 // Test Data Builders
 // ============================================================================
 
 // entryBuilder helps construct test audit entries.
 type entryBuilder struct {
-	id          string
+	id          uuid.UUID
 	occurredAt  time.Time
+	recordedAt  time.Time
 	eventType   string
 	actorID     string
 	actorType   string
 	subjectID   string
 	subjectType string
-	metadata    map[string]interface{}
-	contextID   string
+	metadata    []byte
+	contextID   *string
 }
 
 func newEntryBuilder() *entryBuilder {
 	return &entryBuilder{
+		id:          uuid.New(),
 		occurredAt:  time.Now().UTC(),
+		recordedAt:  time.Now().UTC(),
 		eventType:   "test.event",
 		actorID:     "user-123",
 		actorType:   "user",
 		subjectID:   "subject-456",
 		subjectType: "credential",
-		metadata:    make(map[string]interface{}),
+		metadata:    []byte("{}"),
 	}
 }
 
 func (b *entryBuilder) withID(id string) *entryBuilder {
-	b.id = id
+	parsed, err := uuid.Parse(id)
+	if err == nil {
+		b.id = parsed
+	}
 	return b
 }
 
@@ -186,138 +164,47 @@ func (b *entryBuilder) withSubject(subjectID, subjectType string) *entryBuilder 
 }
 
 func (b *entryBuilder) withMetadata(key string, value interface{}) *entryBuilder {
-	b.metadata[key] = value
+	// Simple JSON construction
+	switch v := value.(type) {
+	case string:
+		b.metadata = []byte(`{"` + key + `":"` + v + `"}`)
+	default:
+		b.metadata = []byte("{}")
+	}
 	return b
 }
 
 func (b *entryBuilder) withContextID(contextID string) *entryBuilder {
-	b.contextID = contextID
+	b.contextID = &contextID
 	return b
 }
 
-func (b *entryBuilder) build(t *testing.T) *generated.InsertEntryParams {
+func (b *entryBuilder) build(t *testing.T) generated.InsertEntryParams {
 	t.Helper()
 
-	id := b.id
-	if id == "" {
-		id = fmt.Sprintf("00000000-0000-0000-0000-%012d", time.Now().UnixNano()%1000000000000)
-	}
-
-	uid, err := parseUUID(id)
-	if err != nil {
-		t.Fatalf("invalid UUID: %v", err)
-	}
-
-	metadata, err := marshalMetadata(b.metadata)
-	if err != nil {
-		t.Fatalf("failed to marshal metadata: %v", err)
-	}
-
-	params := &generated.InsertEntryParams{
-		ID:          uid,
+	return generated.InsertEntryParams{
+		ID:          b.id,
 		OccurredAt:  b.occurredAt,
+		RecordedAt:  b.recordedAt,
 		EventType:   b.eventType,
 		ActorID:     b.actorID,
 		ActorType:   b.actorType,
 		SubjectID:   b.subjectID,
 		SubjectType: b.subjectType,
-		Metadata:    metadata,
+		Metadata:    b.metadata,
+		ContextID:   b.contextID,
 	}
-
-	if b.contextID != "" {
-		params.ContextID = &b.contextID
-	}
-
-	return params
 }
 
 // insertTestEntry is a helper to insert a test entry directly.
-func (db *testDB) insertTestEntry(t *testing.T, params *generated.InsertEntryParams) {
+func (db *testDB) insertTestEntry(t *testing.T, params generated.InsertEntryParams) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := db.queries.InsertEntry(ctx, *params)
+	err := db.queries.InsertEntry(ctx, params)
 	if err != nil {
 		t.Fatalf("failed to insert test entry: %v", err)
 	}
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-func parseUUID(s string) ([16]byte, error) {
-	var uid [16]byte
-	parsed, err := parseUUIDString(s)
-	if err != nil {
-		return uid, err
-	}
-	copy(uid[:], parsed)
-	return uid, nil
-}
-
-func parseUUIDString(s string) ([]byte, error) {
-	// Simple UUID parser - expects format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-	if len(s) != 36 {
-		return nil, fmt.Errorf("invalid UUID length: %d", len(s))
-	}
-
-	hexStr := s[0:8] + s[9:13] + s[14:18] + s[19:23] + s[24:36]
-	if len(hexStr) != 32 {
-		return nil, fmt.Errorf("invalid UUID format")
-	}
-
-	result := make([]byte, 16)
-	for i := 0; i < 16; i++ {
-		var val byte
-		for j := 0; j < 2; j++ {
-			c := hexStr[i*2+j]
-			switch {
-			case c >= '0' && c <= '9':
-				val = val*16 + (c - '0')
-			case c >= 'a' && c <= 'f':
-				val = val*16 + (c - 'a' + 10)
-			case c >= 'A' && c <= 'F':
-				val = val*16 + (c - 'A' + 10)
-			default:
-				return nil, fmt.Errorf("invalid hex character: %c", c)
-			}
-		}
-		result[i] = val
-	}
-
-	return result, nil
-}
-
-func marshalMetadata(m map[string]interface{}) ([]byte, error) {
-	if m == nil || len(m) == 0 {
-		return []byte("{}"), nil
-	}
-
-	// Simple JSON marshaling for test purposes
-	result := "{"
-	first := true
-	for k, v := range m {
-		if !first {
-			result += ","
-		}
-		first = false
-
-		result += fmt.Sprintf(`"%s":`, k)
-		switch val := v.(type) {
-		case string:
-			result += fmt.Sprintf(`"%s"`, val)
-		case int:
-			result += fmt.Sprintf("%d", val)
-		case bool:
-			result += fmt.Sprintf("%t", val)
-		default:
-			result += fmt.Sprintf(`"%v"`, val)
-		}
-	}
-	result += "}"
-
-	return []byte(result), nil
 }
