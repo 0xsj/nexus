@@ -49,7 +49,7 @@ func NewUser(
 
 	now := time.Now().UTC()
 
-	u.Raise(u, UserRegisteredEvent{
+	u.Raise(u, &UserRegisteredEvent{
 		BaseEvent:    newUserBaseEvent(id),
 		UserID:       id.String(),
 		Email:        email.String(),
@@ -194,7 +194,7 @@ func (u *User) Activate() error {
 			WithMessage("cannot activate user in current status: " + u.status.String())
 	}
 
-	u.Raise(u, UserActivatedEvent{
+	u.Raise(u, &UserActivatedEvent{
 		BaseEvent:   newUserBaseEvent(u.id),
 		UserID:      u.id.String(),
 		ActivatedAt: time.Now().UTC(),
@@ -210,7 +210,7 @@ func (u *User) Suspend(reason string) error {
 			WithMessage("cannot suspend user in current status: " + u.status.String())
 	}
 
-	u.Raise(u, UserSuspendedEvent{
+	u.Raise(u, &UserSuspendedEvent{
 		BaseEvent:   newUserBaseEvent(u.id),
 		UserID:      u.id.String(),
 		Reason:      reason,
@@ -227,7 +227,7 @@ func (u *User) Reactivate() error {
 			WithMessage("cannot reactivate user in current status: " + u.status.String())
 	}
 
-	u.Raise(u, UserReactivatedEvent{
+	u.Raise(u, &UserReactivatedEvent{
 		BaseEvent:     newUserBaseEvent(u.id),
 		UserID:        u.id.String(),
 		ReactivatedAt: time.Now().UTC(),
@@ -243,7 +243,7 @@ func (u *User) Delete() error {
 			WithMessage("cannot delete user in current status: " + u.status.String())
 	}
 
-	u.Raise(u, UserDeletedEvent{
+	u.Raise(u, &UserDeletedEvent{
 		BaseEvent: newUserBaseEvent(u.id),
 		UserID:    u.id.String(),
 		DeletedAt: time.Now().UTC(),
@@ -262,7 +262,7 @@ func (u *User) ChangeDisplayName(newName DisplayName) error {
 		return nil // No change needed
 	}
 
-	u.Raise(u, UserDisplayNameChangedEvent{
+	u.Raise(u, &UserDisplayNameChangedEvent{
 		BaseEvent:      newUserBaseEvent(u.id),
 		UserID:         u.id.String(),
 		OldDisplayName: u.displayName.String(),
@@ -283,7 +283,7 @@ func (u *User) ChangeEmail(newEmail types.Email) error {
 		return nil // No change needed
 	}
 
-	u.Raise(u, UserEmailChangedEvent{
+	u.Raise(u, &UserEmailChangedEvent{
 		BaseEvent: newUserBaseEvent(u.id),
 		UserID:    u.id.String(),
 		OldEmail:  u.email.String(),
@@ -309,7 +309,7 @@ func (u *User) AddDID(did string) error {
 		return DIDAlreadyLinked("User.AddDID", did)
 	}
 
-	u.Raise(u, UserDIDAddedEvent{
+	u.Raise(u, &UserDIDAddedEvent{
 		BaseEvent: newUserBaseEvent(u.id),
 		UserID:    u.id.String(),
 		DID:       did,
@@ -333,7 +333,7 @@ func (u *User) RemoveDID(did string) error {
 		return DIDNotFound("User.RemoveDID", did)
 	}
 
-	u.Raise(u, UserDIDRemovedEvent{
+	u.Raise(u, &UserDIDRemovedEvent{
 		BaseEvent: newUserBaseEvent(u.id),
 		UserID:    u.id.String(),
 		DID:       did,
@@ -357,7 +357,7 @@ func (u *User) LinkOAuth(subject OAuthSubject, email string) error {
 		return OAuthAccountLinked("User.LinkOAuth", subject.Provider().String())
 	}
 
-	u.Raise(u, UserOAuthLinkedEvent{
+	u.Raise(u, &UserOAuthLinkedEvent{
 		BaseEvent:  newUserBaseEvent(u.id),
 		UserID:     u.id.String(),
 		Provider:   subject.Provider().String(),
@@ -381,7 +381,7 @@ func (u *User) UnlinkOAuth(provider OAuthProvider) error {
 			WithMessage("oauth provider not linked")
 	}
 
-	u.Raise(u, UserOAuthUnlinkedEvent{
+	u.Raise(u, &UserOAuthUnlinkedEvent{
 		BaseEvent:  newUserBaseEvent(u.id),
 		UserID:     u.id.String(),
 		Provider:   provider.String(),

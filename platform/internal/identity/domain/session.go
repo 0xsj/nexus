@@ -72,7 +72,7 @@ func NewSession(
 	now := time.Now().UTC()
 	expiresAt := now.Add(duration)
 
-	s.Raise(s, SessionStartedEvent{
+	s.Raise(s, &SessionStartedEvent{
 		BaseEvent:  newSessionBaseEvent(id),
 		SessionID:  id.String(),
 		UserID:     userID.String(),
@@ -223,7 +223,7 @@ func (s *Session) Refresh(newToken Token, duration time.Duration) error {
 	now := time.Now().UTC()
 	expiresAt := now.Add(duration)
 
-	s.Raise(s, SessionRefreshedEvent{
+	s.Raise(s, &SessionRefreshedEvent{
 		BaseEvent:    newSessionBaseEvent(s.id),
 		SessionID:    s.id.String(),
 		OldTokenHash: s.tokenHash,
@@ -247,7 +247,7 @@ func (s *Session) Revoke(reason string) error {
 		return SessionNotFound("Session.Revoke", s.id.String())
 	}
 
-	s.Raise(s, SessionRevokedEvent{
+	s.Raise(s, &SessionRevokedEvent{
 		BaseEvent: newSessionBaseEvent(s.id),
 		SessionID: s.id.String(),
 		Reason:    reason,
@@ -269,7 +269,7 @@ func (s *Session) MarkExpired() error {
 			WithMessage("session has not yet expired")
 	}
 
-	s.Raise(s, SessionExpiredEvent{
+	s.Raise(s, &SessionExpiredEvent{
 		BaseEvent: newSessionBaseEvent(s.id),
 		SessionID: s.id.String(),
 		ExpiredAt: time.Now().UTC(),
