@@ -10,12 +10,12 @@ import (
 
 // AuthResponse is the response after successful authentication.
 type AuthResponse struct {
-	AccessToken  string       `json:"access_token"`
-	RefreshToken string       `json:"refresh_token,omitempty"`
-	TokenType    string       `json:"token_type"`
-	ExpiresIn    int          `json:"expires_in"`
-	ExpiresAt    time.Time    `json:"expires_at"`
-	User         UserResponse `json:"user"`
+	AccessToken  string        `json:"access_token"`
+	RefreshToken string        `json:"refresh_token,omitempty"`
+	TokenType    string        `json:"token_type"`
+	ExpiresIn    int           `json:"expires_in"`
+	ExpiresAt    time.Time     `json:"expires_at"`
+	User         *UserResponse `json:"user,omitempty"`
 }
 
 // MagicLinkSentResponse is the response after sending a magic link.
@@ -34,6 +34,13 @@ type OAuthAuthorizeResponse struct {
 	AuthorizationURL string `json:"authorization_url"`
 	State            string `json:"state"`
 	ExpiresIn        int    `json:"expires_in"`
+}
+
+// OAuthInitiatedResponse is the response after initiating OAuth flow.
+type OAuthInitiatedResponse struct {
+	AuthURL   string `json:"auth_url"`
+	State     string `json:"state"`
+	ExpiresIn int    `json:"expires_in"`
 }
 
 // ============================================================================
@@ -84,18 +91,27 @@ type SessionRevokedResponse struct {
 type UserResponse struct {
 	ID          string    `json:"id"`
 	Email       string    `json:"email,omitempty"`
-	DisplayName string    `json:"display_name"`
-	Status      string    `json:"status"`
-	PrimaryDID  string    `json:"primary_did"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	DisplayName string    `json:"display_name,omitempty"`
+	Status      string    `json:"status,omitempty"`
+	PrimaryDID  string    `json:"primary_did,omitempty"`
+	CreatedAt   time.Time `json:"created_at,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 }
 
 // UserProfileResponse represents a detailed user profile.
 type UserProfileResponse struct {
-	User       UserResponse        `json:"user"`
-	DIDs       []DIDResponse       `json:"dids"`
-	OAuthLinks []OAuthLinkResponse `json:"oauth_links"`
+	User          UserResponse           `json:"user"`
+	DIDs          []string               `json:"dids"`
+	AuthMethods   []string               `json:"auth_methods"`
+	OAuthAccounts []OAuthAccountResponse `json:"oauth_accounts"`
+}
+
+// PublicProfileResponse represents a public user profile.
+type PublicProfileResponse struct {
+	UserID      string    `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	PrimaryDID  string    `json:"primary_did"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // ============================================================================
@@ -105,8 +121,16 @@ type UserProfileResponse struct {
 // DIDResponse represents a DID in API responses.
 type DIDResponse struct {
 	DID       string    `json:"did"`
+	Method    string    `json:"method,omitempty"`
 	IsPrimary bool      `json:"is_primary"`
 	AddedAt   time.Time `json:"added_at"`
+}
+
+// DIDListResponse is the list of DIDs for a user.
+type DIDListResponse struct {
+	UserID     string        `json:"user_id"`
+	PrimaryDID string        `json:"primary_did"`
+	DIDs       []DIDResponse `json:"dids"`
 }
 
 // DIDAddedResponse is the response after adding a DID.
@@ -121,11 +145,36 @@ type DIDRemovedResponse struct {
 	DID     string `json:"did"`
 }
 
+// DIDResolutionResponse is the response for DID resolution.
+type DIDResolutionResponse struct {
+	DID         string `json:"did"`
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	IsPrimary   bool   `json:"is_primary"`
+}
+
+// ============================================================================
+// OAuth Account Responses
+// ============================================================================
+
+// OAuthAccountResponse represents an OAuth account in API responses.
+type OAuthAccountResponse struct {
+	Provider   string `json:"provider"`
+	ExternalID string `json:"external_id"`
+	Email      string `json:"email,omitempty"`
+}
+
+// OAuthAccountsResponse is the list of OAuth accounts for a user.
+type OAuthAccountsResponse struct {
+	UserID   string                 `json:"user_id"`
+	Accounts []OAuthAccountResponse `json:"accounts"`
+}
+
 // ============================================================================
 // OAuth Link Responses
 // ============================================================================
 
-// OAuthLinkResponse represents an OAuth link in API responses.
+// OAuthLinkResponse represents an OAuth link in API responses (with linked_at).
 type OAuthLinkResponse struct {
 	Provider   string    `json:"provider"`
 	ExternalID string    `json:"external_id"`

@@ -90,6 +90,28 @@ type EmailService interface {
 }
 
 // ============================================================================
+// OAuth Service Port
+// ============================================================================
+
+// OAuthProfile contains user profile data from an OAuth provider.
+type OAuthProfile struct {
+	Provider   string
+	ExternalID string
+	Email      string
+	Name       string
+	AvatarURL  string
+}
+
+// OAuthService handles OAuth provider interactions.
+type OAuthService interface {
+	// GetAuthorizationURL returns the OAuth authorization URL for a provider.
+	GetAuthorizationURL(ctx context.Context, provider string, state string, redirectURL string) (string, error)
+
+	// ExchangeCode exchanges an authorization code for user profile data.
+	ExchangeCode(ctx context.Context, provider string, code string, redirectURL string) (*OAuthProfile, error)
+}
+
+// ============================================================================
 // Event Publisher Port
 // ============================================================================
 

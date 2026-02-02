@@ -225,7 +225,7 @@ func TestNewSubject_Valid(t *testing.T) {
 
 func TestNewSubject_InvalidType(t *testing.T) {
 	subjectID, _ := NewSubjectID("cred-123")
-	_, err := NewSubject(SubjectTypeUnknown, subjectID)
+	_, err := NewSubject(SubjectType(999), subjectID) // Use truly invalid type, not Unknown
 
 	if err == nil {
 		t.Error("expected error for invalid SubjectType")
@@ -264,7 +264,7 @@ func TestMustNewSubject_InvalidType_Panics(t *testing.T) {
 	}()
 
 	subjectID := MustNewSubjectID("cred-123")
-	MustNewSubject(SubjectTypeUnknown, subjectID)
+	MustNewSubject(SubjectType(999), subjectID) // Use truly invalid type, not Unknown
 }
 
 func TestSubject_IsZero(t *testing.T) {

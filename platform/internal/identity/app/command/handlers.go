@@ -26,6 +26,7 @@ type Handlers struct {
 	sessionLookup  domain.SessionLookup
 	didGenerator   domain.DIDGenerator
 	walletReader   domain.WalletReader
+	oauthService   domain.OAuthService
 	emailService   domain.EmailService
 	publisher      domain.EventPublisher
 	logger         log.Logger
@@ -41,6 +42,7 @@ func NewHandlers(
 	sessionLookup domain.SessionLookup,
 	didGenerator domain.DIDGenerator,
 	walletReader domain.WalletReader,
+	oauthService domain.OAuthService,
 	emailService domain.EmailService,
 	publisher domain.EventPublisher,
 	logger log.Logger,
@@ -54,6 +56,7 @@ func NewHandlers(
 		sessionLookup:  sessionLookup,
 		didGenerator:   didGenerator,
 		walletReader:   walletReader,
+		oauthService:   oauthService,
 		emailService:   emailService,
 		publisher:      publisher,
 		logger:         logger,
@@ -201,6 +204,101 @@ func (h *Handlers) HandleRegisterWithWallet(ctx context.Context, cmd RegisterWit
 		Data: RegisterWithWalletResult{
 			UserID:    userID.String(),
 			DID:       verifyResult.DID,
+			CreatedAt: user.CreatedAt(),
+		},
+	}, nil
+}
+
+// HandleRegisterWithOAuth handles the RegisterWithOAuth command.
+func (h *Handlers) HandleRegisterWithOAuth(ctx context.Context, cmd RegisterWithOAuth) (*cqrs.CommandResult, error) {
+	const op = "Handlers.HandleRegisterWithOAuth"
+
+	// 1. Validate provider
+	provider, err := domain.ParseOAuthProvider(cmd.Provider)
+	if err != nil {
+		return nil, domain.OAuthProviderNotSupported(op, cmd.Provider)
+	}
+
+	// 2. Validate OAuth state
+	stateRecord, err := h.oauthStateRepo.GetByState(ctx, cmd.State)
+	if err != nil {
+		return nil, domain.OAuthStateMismatch(op)
+	}
+	if stateRecord.Provider != cmd.Provider {
+		return nil, domain.OAuthStateMismatch(op)
+	}
+	if time.Now().Unix() > stateRecord.ExpiresAt {
+		return nil, domain.OAuthStateMismatch(op)
+	}
+
+	// 3. Delete used state
+	_ = h.oauthStateRepo.Delete(ctx, cmd.State)
+
+	// 4. Exchange code for profile
+	profile, err := h.oauthService.ExchangeCode(ctx, cmd.Provider, cmd.Code, stateRecord.RedirectURL)
+	if err != nil {
+		return nil, domain.OAuthCodeExchangeFailed(op, err.Error())
+	}
+
+	// 5. Create OAuth subject
+	oauthSubject, err := domain.NewOAuthSubject(provider, profile.ExternalID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// 6. Check if OAuth account already exists
+	exists, err := h.userLookup.ExistsByOAuthSubject(ctx, oauthSubject)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+	if exists {
+		return nil, domain.OAuthAccountLinked(op, cmd.Provider)
+	}
+
+	// 7. Check if email already exists (if provided)
+	if profile.Email != "" {
+		email, err := types.NewEmail(profile.Email)
+		if err == nil {
+			emailExists, err := h.userLookup.ExistsByEmail(ctx, email)
+			if err != nil {
+				return nil, pkgerrors.Wrap(err, op)
+			}
+			if emailExists {
+				return nil, domain.EmailAlreadyRegistered(op, profile.Email)
+			}
+		}
+	}
+
+	// 8. Create user
+	user, err := h.createUserFromOAuth(ctx, profile, oauthSubject)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// 9. Override display name if provided
+	if cmd.DisplayName != nil && *cmd.DisplayName != "" {
+		newDisplayName, err := domain.NewDisplayName(*cmd.DisplayName)
+		if err != nil {
+			return nil, pkgerrors.Wrap(err, op)
+		}
+		if err := user.ChangeDisplayName(newDisplayName); err != nil {
+			return nil, pkgerrors.Wrap(err, op)
+		}
+		if err := h.userRepo.Save(ctx, user); err != nil {
+			return nil, pkgerrors.Wrap(err, op)
+		}
+	}
+
+	// 10. Publish events
+	h.publishEvents(ctx, op, user.Changes())
+
+	return &cqrs.CommandResult{
+		ID:      user.ID().String(),
+		Version: user.Version(),
+		Data: RegisterWithOAuthResult{
+			UserID:    user.ID().String(),
+			Email:     profile.Email,
+			Provider:  cmd.Provider,
 			CreatedAt: user.CreatedAt(),
 		},
 	}, nil
@@ -457,6 +555,173 @@ func (h *Handlers) HandleAuthenticateWithWallet(ctx context.Context, cmd Authent
 			SessionID:   sessionID.String(),
 			AccessToken: sessionToken.String(),
 			DID:         verifyResult.DID,
+			ExpiresAt:   session.ExpiresAt(),
+			IsNewUser:   isNewUser,
+		},
+	}, nil
+}
+
+// ============================================================================
+// OAuth Authentication Handlers
+// ============================================================================
+
+// HandleInitiateOAuth handles the InitiateOAuth command.
+func (h *Handlers) HandleInitiateOAuth(ctx context.Context, cmd InitiateOAuth) (*cqrs.CommandResult, error) {
+	const op = "Handlers.HandleInitiateOAuth"
+
+	// 1. Validate provider
+	_, err := domain.ParseOAuthProvider(cmd.Provider)
+	if err != nil {
+		return nil, domain.OAuthProviderNotSupported(op, cmd.Provider)
+	}
+
+	// 2. Generate state token
+	stateToken, err := domain.NewToken()
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// 3. Store OAuth state
+	expiresAt := time.Now().UTC().Add(10 * time.Minute)
+	record := &domain.OAuthStateRecord{
+		State:       stateToken.String(),
+		Provider:    cmd.Provider,
+		RedirectURL: cmd.RedirectURL,
+		ExpiresAt:   expiresAt.Unix(),
+		CreatedAt:   time.Now().UTC().Unix(),
+	}
+	if err := h.oauthStateRepo.Save(ctx, record); err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// 4. Get authorization URL from OAuth service
+	authURL, err := h.oauthService.GetAuthorizationURL(ctx, cmd.Provider, stateToken.String(), cmd.RedirectURL)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	return &cqrs.CommandResult{
+		ID: stateToken.String(),
+		Data: InitiateOAuthResult{
+			AuthURL:   authURL,
+			State:     stateToken.String(),
+			ExpiresAt: expiresAt,
+		},
+	}, nil
+}
+
+// HandleAuthenticateWithOAuth handles the AuthenticateWithOAuth command.
+func (h *Handlers) HandleAuthenticateWithOAuth(ctx context.Context, cmd AuthenticateWithOAuth) (*cqrs.CommandResult, error) {
+	const op = "Handlers.HandleAuthenticateWithOAuth"
+
+	// 1. Validate provider
+	provider, err := domain.ParseOAuthProvider(cmd.Provider)
+	if err != nil {
+		return nil, domain.OAuthProviderNotSupported(op, cmd.Provider)
+	}
+
+	// 2. Validate OAuth state
+	stateRecord, err := h.oauthStateRepo.GetByState(ctx, cmd.State)
+	if err != nil {
+		return nil, domain.OAuthStateMismatch(op)
+	}
+	if stateRecord.Provider != cmd.Provider {
+		return nil, domain.OAuthStateMismatch(op)
+	}
+	if time.Now().Unix() > stateRecord.ExpiresAt {
+		return nil, domain.OAuthStateMismatch(op)
+	}
+
+	// 3. Delete used state
+	_ = h.oauthStateRepo.Delete(ctx, cmd.State)
+
+	// 4. Exchange code for profile
+	profile, err := h.oauthService.ExchangeCode(ctx, cmd.Provider, cmd.Code, stateRecord.RedirectURL)
+	if err != nil {
+		return nil, domain.OAuthCodeExchangeFailed(op, err.Error())
+	}
+
+	// 5. Create OAuth subject
+	oauthSubject, err := domain.NewOAuthSubject(provider, profile.ExternalID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// 6. Find or create user
+	var user *domain.User
+	var isNewUser bool
+
+	userID, err := h.userLookup.GetUserIDByOAuthSubject(ctx, oauthSubject)
+	if err != nil {
+		if !pkgerrors.Is(err, pkgerrors.ErrNotFound) {
+			return nil, pkgerrors.Wrap(err, op)
+		}
+		// User doesn't exist, create new user
+		isNewUser = true
+		user, err = h.createUserFromOAuth(ctx, profile, oauthSubject)
+		if err != nil {
+			return nil, pkgerrors.Wrap(err, op)
+		}
+	} else {
+		// Load existing user
+		user, err = h.userRepo.Get(ctx, userID)
+		if err != nil {
+			return nil, pkgerrors.Wrap(err, op)
+		}
+	}
+
+	// 7. Check user can authenticate
+	if !user.CanAuthenticate() {
+		return nil, domain.UserNotActive(op, user.ID().String())
+	}
+
+	// 8. Activate user if pending
+	if user.IsPending() {
+		if err := user.Activate(); err != nil {
+			return nil, pkgerrors.Wrap(err, op)
+		}
+		if err := h.userRepo.Save(ctx, user); err != nil {
+			return nil, pkgerrors.Wrap(err, op)
+		}
+	}
+
+	// 9. Create session
+	sessionToken, err := domain.NewToken()
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	sessionID := domain.NewSessionID()
+	session, err := domain.NewSession(
+		sessionID,
+		user.ID(),
+		sessionToken,
+		domain.AuthMethodOAuth,
+		cmd.IPAddress,
+		cmd.UserAgent,
+		domain.DefaultSessionDuration,
+	)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	if err := h.sessionRepo.Save(ctx, session); err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// 10. Publish events
+	h.publishEvents(ctx, op, user.Changes())
+	h.publishEvents(ctx, op, session.Changes())
+
+	return &cqrs.CommandResult{
+		ID:      sessionID.String(),
+		Version: session.Version(),
+		Data: AuthenticateWithOAuthResult{
+			UserID:      user.ID().String(),
+			SessionID:   sessionID.String(),
+			AccessToken: sessionToken.String(),
+			Email:       profile.Email,
+			Provider:    cmd.Provider,
 			ExpiresAt:   session.ExpiresAt(),
 			IsNewUser:   isNewUser,
 		},
@@ -999,14 +1264,14 @@ func (h *Handlers) HandleLinkOAuthAccount(ctx context.Context, cmd LinkOAuthAcco
 	// 3. Delete used state
 	_ = h.oauthStateRepo.Delete(ctx, cmd.State)
 
-	// 4. Exchange code for profile (this would call OAuth service)
-	// For now, we'll assume the OAuth service returns externalID and email
-	// In real implementation, you'd call: oauthProfile, err := h.oauthService.ExchangeCode(ctx, provider, cmd.Code)
-	externalID := "oauth_external_id" // Placeholder
-	email := ""                       // Placeholder
+	// 4. Exchange code for profile
+	profile, err := h.oauthService.ExchangeCode(ctx, cmd.Provider, cmd.Code, stateRecord.RedirectURL)
+	if err != nil {
+		return nil, domain.OAuthCodeExchangeFailed(op, err.Error())
+	}
 
 	// 5. Check if OAuth account is already linked to another user
-	oauthSubject, err := domain.NewOAuthSubject(provider, externalID)
+	oauthSubject, err := domain.NewOAuthSubject(provider, profile.ExternalID)
 	if err != nil {
 		return nil, pkgerrors.Wrap(err, op)
 	}
@@ -1023,7 +1288,7 @@ func (h *Handlers) HandleLinkOAuthAccount(ctx context.Context, cmd LinkOAuthAcco
 	}
 
 	// 7. Link OAuth account
-	if err := user.LinkOAuth(oauthSubject, email); err != nil {
+	if err := user.LinkOAuth(oauthSubject, profile.Email); err != nil {
 		return nil, pkgerrors.Wrap(err, op)
 	}
 
@@ -1041,7 +1306,7 @@ func (h *Handlers) HandleLinkOAuthAccount(ctx context.Context, cmd LinkOAuthAcco
 		Data: LinkOAuthAccountResult{
 			UserID:     userID.String(),
 			Provider:   cmd.Provider,
-			ExternalID: externalID,
+			ExternalID: profile.ExternalID,
 			LinkedAt:   user.UpdatedAt(),
 		},
 	}, nil
@@ -1158,6 +1423,71 @@ func (h *Handlers) createUserFromWallet(ctx context.Context, address string, did
 	return user, nil
 }
 
+// createUserFromOAuth creates a new user from OAuth authentication.
+func (h *Handlers) createUserFromOAuth(ctx context.Context, profile *domain.OAuthProfile, subject domain.OAuthSubject) (*domain.User, error) {
+	const op = "Handlers.createUserFromOAuth"
+
+	// Generate DID
+	did, err := h.didGenerator.GenerateDIDKey(ctx)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// Create display name from profile name or email
+	displayNameStr := profile.Name
+	if displayNameStr == "" && profile.Email != "" {
+		email, err := types.NewEmail(profile.Email)
+		if err == nil {
+			displayNameStr = email.Local()
+		}
+	}
+	if displayNameStr == "" {
+		displayNameStr = "User"
+	}
+	displayName, _ := domain.NewDisplayName(displayNameStr)
+
+	// Create email if provided
+	var email types.Email
+	if profile.Email != "" {
+		email, _ = types.NewEmail(profile.Email)
+	}
+
+	// Create user
+	userID := domain.NewUserID()
+	user, err := domain.NewUser(
+		userID,
+		email,
+		displayName,
+		domain.AuthMethodOAuth,
+		did,
+	)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// Save user first
+	if err := h.userRepo.Save(ctx, user); err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// Activate the user (OAuth users are pre-verified)
+	if err := user.Activate(); err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// Link OAuth account
+	if err := user.LinkOAuth(subject, profile.Email); err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	// Save again with OAuth link
+	if err := h.userRepo.Save(ctx, user); err != nil {
+		return nil, pkgerrors.Wrap(err, op)
+	}
+
+	return user, nil
+}
+
 // publishEvents publishes domain events (fire-and-forget with logging).
 func (h *Handlers) publishEvents(ctx context.Context, op string, events []eventsourcing.Event) {
 	if len(events) == 0 {
@@ -1195,9 +1525,12 @@ func RegisterCommands(bus *cqrs.InMemoryCommandBus, handlers *Handlers) error {
 	}{
 		{CommandRegisterWithEmail, handlers},
 		{CommandRegisterWithWallet, handlers},
+		{CommandRegisterWithOAuth, handlers},
 		{CommandRequestMagicLink, handlers},
 		{CommandVerifyMagicLink, handlers},
 		{CommandAuthenticateWithWallet, handlers},
+		{CommandInitiateOAuth, handlers},
+		{CommandAuthenticateWithOAuth, handlers},
 		{CommandRefreshSession, handlers},
 		{CommandRevokeSession, handlers},
 		{CommandRevokeAllUserSessions, handlers},

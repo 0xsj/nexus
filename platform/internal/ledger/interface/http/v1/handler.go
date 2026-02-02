@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -10,16 +11,34 @@ import (
 )
 
 // ============================================================================
+// Query Handler Interface
+// ============================================================================
+
+// QueryHandler defines the interface for ledger query operations.
+type QueryHandler interface {
+	HandleGetEntry(ctx context.Context, q query.GetEntry) (*query.EntryView, error)
+	HandleGetActivity(ctx context.Context, q query.GetActivity) (*query.ActivityView, error)
+	HandleGetUserActivity(ctx context.Context, q query.GetUserActivity) (*query.UserActivityView, error)
+	HandleGetCredentialHistory(ctx context.Context, q query.GetCredentialHistory) (*query.CredentialHistoryView, error)
+	HandleGetSubjectHistory(ctx context.Context, q query.GetSubjectHistory) (*query.SubjectHistoryView, error)
+	HandleGetVerificationLog(ctx context.Context, q query.GetVerificationLog) (*query.VerificationLogView, error)
+	HandleGetActivityStats(ctx context.Context, q query.GetActivityStats) (*query.ActivityStatsView, error)
+}
+
+// Compile-time check that *query.Handlers implements QueryHandler
+var _ QueryHandler = (*query.Handlers)(nil)
+
+// ============================================================================
 // Handler
 // ============================================================================
 
 // Handler handles HTTP requests for the Ledger context.
 type Handler struct {
-	queries *query.Handlers
+	queries QueryHandler
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(queries *query.Handlers) *Handler {
+func NewHandler(queries QueryHandler) *Handler {
 	return &Handler{
 		queries: queries,
 	}
