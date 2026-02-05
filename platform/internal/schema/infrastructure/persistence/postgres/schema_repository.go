@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/0xsj/nexus/platform/internal/schema/domain"
 	generated "github.com/0xsj/nexus/platform/internal/schema/infrastructure/persistence/postgres/generated"
@@ -29,13 +30,15 @@ var (
 
 // Repository implements domain.SchemaRepository using PostgreSQL.
 type Repository struct {
+	pool    *pgxpool.Pool
 	queries *generated.Queries
 }
 
 // NewRepository creates a new Repository.
-func NewRepository(queries *generated.Queries) *Repository {
+func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{
-		queries: queries,
+		pool:    pool,
+		queries: generated.New(pool),
 	}
 }
 
@@ -60,11 +63,19 @@ func (r *Repository) Save(ctx context.Context, schema *domain.Schema) error {
 	return r.insert(ctx, op, schema)
 }
 
-// insert creates a new schema record.
+// insert creates a new schema record within a transaction.
 func (r *Repository) insert(ctx context.Context, op string, schema *domain.Schema) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return pkgerrors.Infrastructure(op, err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := r.queries.WithTx(tx)
+
 	// Insert schema
 	params := ToInsertSchemaParams(schema)
-	if err := r.queries.InsertSchema(ctx, params); err != nil {
+	if err := qtx.InsertSchema(ctx, params); err != nil {
 		return pkgerrors.Infrastructure(op, err)
 	}
 
@@ -75,7 +86,7 @@ func (r *Repository) insert(ctx context.Context, op string, schema *domain.Schem
 		if err != nil {
 			return pkgerrors.Wrap(err, op)
 		}
-		if err := r.queries.InsertSchemaClaim(ctx, claimParams); err != nil {
+		if err := qtx.InsertSchemaClaim(ctx, claimParams); err != nil {
 			return pkgerrors.Infrastructure(op, err)
 		}
 	}
@@ -91,23 +102,31 @@ func (r *Repository) insert(ctx context.Context, op string, schema *domain.Schem
 	if err != nil {
 		return pkgerrors.Wrap(err, op)
 	}
-	if err := r.queries.InsertSchemaVersion(ctx, versionParams); err != nil {
+	if err := qtx.InsertSchemaVersion(ctx, versionParams); err != nil {
 		return pkgerrors.Infrastructure(op, err)
 	}
 
-	return nil
+	return tx.Commit(ctx)
 }
 
-// update updates an existing schema record.
+// update updates an existing schema record within a transaction.
 func (r *Repository) update(ctx context.Context, op string, schema *domain.Schema) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return pkgerrors.Infrastructure(op, err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := r.queries.WithTx(tx)
+
 	// Update schema
 	params := ToUpdateSchemaParams(schema)
-	if err := r.queries.UpdateSchema(ctx, params); err != nil {
+	if err := qtx.UpdateSchema(ctx, params); err != nil {
 		return pkgerrors.Infrastructure(op, err)
 	}
 
 	// Check if version changed (new version added)
-	versionExists, err := r.queries.SchemaVersionExists(ctx, generated.SchemaVersionExistsParams{
+	versionExists, err := qtx.SchemaVersionExists(ctx, generated.SchemaVersionExistsParams{
 		SchemaID: schema.ID().UUID(),
 		Version:  schema.CurrentVersion().String(),
 	})
@@ -117,7 +136,7 @@ func (r *Repository) update(ctx context.Context, op string, schema *domain.Schem
 
 	if !versionExists {
 		// New version - delete old claims and insert new ones
-		if err := r.queries.DeleteSchemaClaimsBySchemaID(ctx, schema.ID().UUID()); err != nil {
+		if err := qtx.DeleteSchemaClaimsBySchemaID(ctx, schema.ID().UUID()); err != nil {
 			return pkgerrors.Infrastructure(op, err)
 		}
 
@@ -127,7 +146,7 @@ func (r *Repository) update(ctx context.Context, op string, schema *domain.Schem
 			if err != nil {
 				return pkgerrors.Wrap(err, op)
 			}
-			if err := r.queries.InsertSchemaClaim(ctx, claimParams); err != nil {
+			if err := qtx.InsertSchemaClaim(ctx, claimParams); err != nil {
 				return pkgerrors.Infrastructure(op, err)
 			}
 		}
@@ -143,12 +162,12 @@ func (r *Repository) update(ctx context.Context, op string, schema *domain.Schem
 		if err != nil {
 			return pkgerrors.Wrap(err, op)
 		}
-		if err := r.queries.InsertSchemaVersion(ctx, versionParams); err != nil {
+		if err := qtx.InsertSchemaVersion(ctx, versionParams); err != nil {
 			return pkgerrors.Infrastructure(op, err)
 		}
 	}
 
-	return nil
+	return tx.Commit(ctx)
 }
 
 // ============================================================================

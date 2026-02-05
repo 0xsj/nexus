@@ -425,9 +425,19 @@ func (u *User) ApplyEvent(event eventsourcing.Event) {
 }
 
 func (u *User) onUserRegistered(e *UserRegisteredEvent) {
-	u.id, _ = ParseUserID(e.UserID)
-	u.email, _ = types.NewEmail(e.Email)
-	u.displayName, _ = NewDisplayName(e.DisplayName)
+	var err error
+	u.id, err = ParseUserID(e.UserID)
+	if err != nil {
+		panic("corrupt event store: UserRegistered has invalid UserID: " + e.UserID)
+	}
+	u.email, err = types.NewEmail(e.Email)
+	if err != nil {
+		panic("corrupt event store: UserRegistered has invalid Email: " + e.Email)
+	}
+	u.displayName, err = NewDisplayName(e.DisplayName)
+	if err != nil {
+		panic("corrupt event store: UserRegistered has invalid DisplayName: " + e.DisplayName)
+	}
 	u.status = UserStatusPending
 	u.primaryDID = e.PrimaryDID
 	u.dids = []string{e.PrimaryDID}
@@ -457,12 +467,20 @@ func (u *User) onUserDeleted(e *UserDeletedEvent) {
 }
 
 func (u *User) onUserDisplayNameChanged(e *UserDisplayNameChangedEvent) {
-	u.displayName, _ = NewDisplayName(e.NewDisplayName)
+	var err error
+	u.displayName, err = NewDisplayName(e.NewDisplayName)
+	if err != nil {
+		panic("corrupt event store: UserDisplayNameChanged has invalid DisplayName: " + e.NewDisplayName)
+	}
 	u.updatedAt = e.ChangedAt
 }
 
 func (u *User) onUserEmailChanged(e *UserEmailChangedEvent) {
-	u.email, _ = types.NewEmail(e.NewEmail)
+	var err error
+	u.email, err = types.NewEmail(e.NewEmail)
+	if err != nil {
+		panic("corrupt event store: UserEmailChanged has invalid Email: " + e.NewEmail)
+	}
 	u.updatedAt = e.ChangedAt
 }
 
@@ -483,14 +501,23 @@ func (u *User) onUserDIDRemoved(e *UserDIDRemovedEvent) {
 }
 
 func (u *User) onUserOAuthLinked(e *UserOAuthLinkedEvent) {
-	provider, _ := ParseOAuthProvider(e.Provider)
-	subject, _ := NewOAuthSubject(provider, e.ExternalID)
+	provider, err := ParseOAuthProvider(e.Provider)
+	if err != nil {
+		panic("corrupt event store: UserOAuthLinked has invalid Provider: " + e.Provider)
+	}
+	subject, err := NewOAuthSubject(provider, e.ExternalID)
+	if err != nil {
+		panic("corrupt event store: UserOAuthLinked has invalid OAuthSubject: " + e.Provider + ":" + e.ExternalID)
+	}
 	u.oauthLinks = append(u.oauthLinks, subject)
 	u.updatedAt = e.LinkedAt
 }
 
 func (u *User) onUserOAuthUnlinked(e *UserOAuthUnlinkedEvent) {
-	provider, _ := ParseOAuthProvider(e.Provider)
+	provider, err := ParseOAuthProvider(e.Provider)
+	if err != nil {
+		panic("corrupt event store: UserOAuthUnlinked has invalid Provider: " + e.Provider)
+	}
 	newLinks := make([]OAuthSubject, 0, len(u.oauthLinks)-1)
 	for _, link := range u.oauthLinks {
 		if link.Provider() != provider {

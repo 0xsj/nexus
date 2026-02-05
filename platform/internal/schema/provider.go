@@ -8,7 +8,6 @@ import (
 	"github.com/0xsj/nexus/platform/internal/schema/app/query"
 	"github.com/0xsj/nexus/platform/internal/schema/domain"
 	"github.com/0xsj/nexus/platform/internal/schema/infrastructure/persistence/postgres"
-	generated "github.com/0xsj/nexus/platform/internal/schema/infrastructure/persistence/postgres/generated"
 	v1 "github.com/0xsj/nexus/platform/internal/schema/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -43,8 +42,7 @@ func NewProvider(
 	logger log.Logger,
 ) *Provider {
 	// Infrastructure
-	queries := generated.New(pool)
-	repository := postgres.NewRepository(queries)
+	repository := postgres.NewRepository(pool)
 
 	// The repository implements both SchemaRepository and SchemaLookup
 	schemaLookup := repository

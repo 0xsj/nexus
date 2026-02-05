@@ -3,6 +3,8 @@ package eventsourcing
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // ============================================================================
@@ -280,57 +282,5 @@ func (s *EventStream) Len() int {
 
 // generateEventID generates a unique event ID.
 func generateEventID() string {
-	return generateUUID()
-}
-
-// generateUUID generates a UUID v4.
-func generateUUID() string {
-	// Simple implementation - in production use a proper UUID library
-	b := make([]byte, 16)
-	for i := range b {
-		b[i] = byte(time.Now().UnixNano() >> (i * 8))
-	}
-	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
-	b[8] = (b[8] & 0x3f) | 0x80 // Variant 10
-
-	return formatUUID(b)
-}
-
-func formatUUID(b []byte) string {
-	return sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}
-
-func sprintf(format string, args ...any) string {
-	// Simple hex formatter
-	result := ""
-	argIdx := 0
-
-	for i := 0; i < len(format); i++ {
-		if format[i] == '%' && i+1 < len(format) {
-			i++ // skip %
-			width := 0
-			for i < len(format) && format[i] >= '0' && format[i] <= '9' {
-				width = width*10 + int(format[i]-'0')
-				i++
-			}
-			if i < len(format) && format[i] == 'x' && argIdx < len(args) {
-				if bytes, ok := args[argIdx].([]byte); ok {
-					for _, b := range bytes {
-						result += hexByte(b)
-					}
-				}
-				argIdx++
-			}
-		} else {
-			result += string(format[i])
-		}
-	}
-
-	return result
-}
-
-func hexByte(b byte) string {
-	const hex = "0123456789abcdef"
-	return string([]byte{hex[b>>4], hex[b&0x0f]})
+	return uuid.NewString()
 }

@@ -70,10 +70,10 @@ func (b *InMemoryQueryBus) Register(queryType string, handler any) error {
 	const op = "QueryBus.Register"
 
 	if queryType == "" {
-		return ErrCommandValidation(op, "query type cannot be empty")
+		return ErrQueryValidation(op, "query type cannot be empty")
 	}
 	if handler == nil {
-		return ErrCommandValidation(op, "handler cannot be nil")
+		return ErrQueryValidation(op, "handler cannot be nil")
 	}
 
 	b.mu.Lock()
@@ -94,7 +94,7 @@ func (b *InMemoryQueryBus) Dispatch(ctx context.Context, query Query) (any, erro
 	const op = "QueryBus.Dispatch"
 
 	if query == nil {
-		return nil, ErrCommandValidation(op, "query cannot be nil")
+		return nil, ErrQueryValidation(op, "query cannot be nil")
 	}
 
 	queryType := query.QueryName()
