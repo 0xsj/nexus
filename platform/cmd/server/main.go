@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/0xsj/nexus/platform/internal/credential"
 	"github.com/0xsj/nexus/platform/internal/identity"
 	identityeventbus "github.com/0xsj/nexus/platform/internal/identity/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/stubs"
@@ -132,6 +133,9 @@ func run() error {
 		obs.ComponentLogger("schema"),
 	)
 
+	// Credential
+	credentialProvider := credential.NewProviderWithDefaults(pool, obs.ComponentLogger("credential"))
+
 	// Ledger
 	metadataExtractor := ledgereventbus.NewMetadataExtractor()
 	ledgerProvider := ledger.NewProvider(pool, metadataExtractor)
@@ -161,6 +165,7 @@ func run() error {
 		identityProvider.RegisterRoutes(r, authMiddleware)
 	})
 	schemaProvider.RegisterRoutes(router)
+	credentialProvider.RegisterRoutes(router)
 	ledgerProvider.RegisterRoutes(router)
 
 	logger.Info("routes registered")
