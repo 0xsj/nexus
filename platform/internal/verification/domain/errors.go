@@ -12,13 +12,13 @@ import (
 // ============================================================================
 
 const (
-	CodeVerificationNotFound          pkgerrors.Code = "VERIFICATION_NOT_FOUND"
-	CodeVerificationFailed            pkgerrors.Code = "VERIFICATION_FAILED"
-	CodeOAuthStateMismatch            pkgerrors.Code = "OAUTH_STATE_MISMATCH"
-	CodeOAuthCallbackFailed           pkgerrors.Code = "OAUTH_CALLBACK_FAILED"
-	CodeDataFetchFailed               pkgerrors.Code = "DATA_FETCH_FAILED"
-	CodeProviderNotSupported          pkgerrors.Code = "PROVIDER_NOT_SUPPORTED"
-	CodeVerificationAlreadyCompleted  pkgerrors.Code = "VERIFICATION_ALREADY_COMPLETED"
+	CodeVerificationNotFound         pkgerrors.Code = "VERIFICATION_NOT_FOUND"
+	CodeVerificationFailed           pkgerrors.Code = "VERIFICATION_FAILED"
+	CodeOAuthStateMismatch           pkgerrors.Code = "OAUTH_STATE_MISMATCH"
+	CodeOAuthCallbackFailed          pkgerrors.Code = "OAUTH_CALLBACK_FAILED"
+	CodeDataFetchFailed              pkgerrors.Code = "DATA_FETCH_FAILED"
+	CodeProviderNotSupported         pkgerrors.Code = "PROVIDER_NOT_SUPPORTED"
+	CodeVerificationAlreadyCompleted pkgerrors.Code = "VERIFICATION_ALREADY_COMPLETED"
 )
 
 // ============================================================================

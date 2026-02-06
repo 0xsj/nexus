@@ -359,39 +359,55 @@ func (s *Schema) ApplyEvent(event eventsourcing.Event) {
 }
 
 func (s *Schema) applySchemaRegistered(e *SchemaRegisteredEvent) {
-	s.id, _ = types.ParseID(e.SchemaID)
+	var err error
+	s.id, err = types.ParseID(e.SchemaID)
+	if err != nil {
+		panic("corrupt event store: SchemaRegistered has invalid SchemaID: " + e.SchemaID)
+	}
 	s.schemaType = e.SchemaType
 	s.name = e.Name
 	s.description = e.Description
-	s.currentVersion, _ = ParseSchemaVersion(e.Version)
+	s.currentVersion, err = ParseSchemaVersion(e.Version)
+	if err != nil {
+		panic("corrupt event store: SchemaRegistered has invalid Version: " + e.Version)
+	}
 	s.status = SchemaStatusActive
 	s.createdAt = e.RegisteredAt
 	s.updatedAt = e.RegisteredAt
 
 	if e.IssuerID != "" {
-		issuerID, _ := types.ParseID(e.IssuerID)
+		issuerID, err := types.ParseID(e.IssuerID)
+		if err != nil {
+			panic("corrupt event store: SchemaRegistered has invalid IssuerID: " + e.IssuerID)
+		}
 		s.issuerID = &issuerID
 	}
 
 	s.claims = make([]ClaimDefinition, 0, len(e.Claims))
 	for _, claimData := range e.Claims {
 		claim, err := claimData.ToClaimDefinition()
-		if err == nil {
-			s.claims = append(s.claims, claim)
+		if err != nil {
+			panic("corrupt event store: SchemaRegistered has invalid ClaimDefinition: " + err.Error())
 		}
+		s.claims = append(s.claims, claim)
 	}
 }
 
 func (s *Schema) applySchemaVersionAdded(e *SchemaVersionAddedEvent) {
-	s.currentVersion, _ = ParseSchemaVersion(e.Version)
+	var err error
+	s.currentVersion, err = ParseSchemaVersion(e.Version)
+	if err != nil {
+		panic("corrupt event store: SchemaVersionAdded has invalid Version: " + e.Version)
+	}
 	s.updatedAt = e.AddedAt
 
 	s.claims = make([]ClaimDefinition, 0, len(e.Claims))
 	for _, claimData := range e.Claims {
 		claim, err := claimData.ToClaimDefinition()
-		if err == nil {
-			s.claims = append(s.claims, claim)
+		if err != nil {
+			panic("corrupt event store: SchemaVersionAdded has invalid ClaimDefinition: " + err.Error())
 		}
+		s.claims = append(s.claims, claim)
 	}
 }
 

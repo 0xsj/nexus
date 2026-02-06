@@ -31,12 +31,12 @@ const (
 type OrganizationCreatedEvent struct {
 	eventsourcing.BaseEvent
 
-	OrganizationID string `json:"organization_id"`
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	OrgType        string `json:"org_type"`
-	OwnerUserID    string `json:"owner_user_id"`
-	OwnerMemberID  string `json:"owner_member_id"`
+	OrganizationID string    `json:"organization_id"`
+	Name           string    `json:"name"`
+	Slug           string    `json:"slug"`
+	OrgType        string    `json:"org_type"`
+	OwnerUserID    string    `json:"owner_user_id"`
+	OwnerMemberID  string    `json:"owner_member_id"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -46,9 +46,9 @@ func (e OrganizationCreatedEvent) EventType() string { return EventTypeOrganizat
 type OrganizationUpdatedEvent struct {
 	eventsourcing.BaseEvent
 
-	OrganizationID string `json:"organization_id"`
-	Name           string `json:"name,omitempty"`
-	Description    string `json:"description,omitempty"`
+	OrganizationID string    `json:"organization_id"`
+	Name           string    `json:"name,omitempty"`
+	Description    string    `json:"description,omitempty"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
@@ -58,8 +58,8 @@ func (e OrganizationUpdatedEvent) EventType() string { return EventTypeOrganizat
 type OrganizationVerifiedEvent struct {
 	eventsourcing.BaseEvent
 
-	OrganizationID string `json:"organization_id"`
-	DID            string `json:"did,omitempty"`
+	OrganizationID string    `json:"organization_id"`
+	DID            string    `json:"did,omitempty"`
 	VerifiedAt     time.Time `json:"verified_at"`
 }
 

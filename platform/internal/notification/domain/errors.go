@@ -11,12 +11,12 @@ import (
 // ============================================================================
 
 const (
-	CodeNotificationNotFound  pkgerrors.Code = "NOTIFICATION_NOT_FOUND"
+	CodeNotificationNotFound    pkgerrors.Code = "NOTIFICATION_NOT_FOUND"
 	CodeNotificationAlreadyRead pkgerrors.Code = "NOTIFICATION_ALREADY_READ"
-	CodeNotificationInvalid   pkgerrors.Code = "NOTIFICATION_INVALID"
-	CodePreferencesNotFound   pkgerrors.Code = "PREFERENCES_NOT_FOUND"
-	CodeTemplateNotFound      pkgerrors.Code = "TEMPLATE_NOT_FOUND"
-	CodeDeliveryFailed        pkgerrors.Code = "DELIVERY_FAILED"
+	CodeNotificationInvalid     pkgerrors.Code = "NOTIFICATION_INVALID"
+	CodePreferencesNotFound     pkgerrors.Code = "PREFERENCES_NOT_FOUND"
+	CodeTemplateNotFound        pkgerrors.Code = "TEMPLATE_NOT_FOUND"
+	CodeDeliveryFailed          pkgerrors.Code = "DELIVERY_FAILED"
 )
 
 // ============================================================================
@@ -24,12 +24,12 @@ const (
 // ============================================================================
 
 var (
-	ErrNotificationNotFound  = errors.New("notification not found")
+	ErrNotificationNotFound    = errors.New("notification not found")
 	ErrNotificationAlreadyRead = errors.New("notification already read")
-	ErrNotificationInvalid   = errors.New("notification is invalid")
-	ErrPreferencesNotFound   = errors.New("preferences not found")
-	ErrTemplateNotFound      = errors.New("template not found")
-	ErrDeliveryFailed        = errors.New("delivery failed")
+	ErrNotificationInvalid     = errors.New("notification is invalid")
+	ErrPreferencesNotFound     = errors.New("preferences not found")
+	ErrTemplateNotFound        = errors.New("template not found")
+	ErrDeliveryFailed          = errors.New("delivery failed")
 )
 
 // ============================================================================

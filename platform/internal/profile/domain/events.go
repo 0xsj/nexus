@@ -13,12 +13,12 @@ const (
 
 // Event type constants
 const (
-	EventTypeProfileCreated          = "Profile.Created"
-	EventTypeProfileUpdated          = "Profile.Updated"
-	EventTypeBadgeAdded              = "Profile.BadgeAdded"
-	EventTypeBadgeRemoved            = "Profile.BadgeRemoved"
-	EventTypeBadgeVisibilityChanged  = "Profile.BadgeVisibilityChanged"
-	EventTypeVanityURLClaimed        = "Profile.VanityURLClaimed"
+	EventTypeProfileCreated         = "Profile.Created"
+	EventTypeProfileUpdated         = "Profile.Updated"
+	EventTypeBadgeAdded             = "Profile.BadgeAdded"
+	EventTypeBadgeRemoved           = "Profile.BadgeRemoved"
+	EventTypeBadgeVisibilityChanged = "Profile.BadgeVisibilityChanged"
+	EventTypeVanityURLClaimed       = "Profile.VanityURLClaimed"
 )
 
 // ============================================================================

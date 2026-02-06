@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"strconv"
 
@@ -13,11 +12,20 @@ import (
 	"github.com/0xsj/nexus/platform/internal/identity"
 	identityeventbus "github.com/0xsj/nexus/platform/internal/identity/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/stubs"
+	"github.com/0xsj/nexus/platform/internal/integration"
+	"github.com/0xsj/nexus/platform/internal/issuer"
 	"github.com/0xsj/nexus/platform/internal/ledger"
 	ledgereventbus "github.com/0xsj/nexus/platform/internal/ledger/infrastructure/eventbus"
+	"github.com/0xsj/nexus/platform/internal/notification"
+	"github.com/0xsj/nexus/platform/internal/organization"
+	"github.com/0xsj/nexus/platform/internal/presentation"
+	"github.com/0xsj/nexus/platform/internal/profile"
 	"github.com/0xsj/nexus/platform/internal/schema"
 	schemadomain "github.com/0xsj/nexus/platform/internal/schema/domain"
 	schemaeventbus "github.com/0xsj/nexus/platform/internal/schema/infrastructure/eventbus"
+	"github.com/0xsj/nexus/platform/internal/trust"
+	"github.com/0xsj/nexus/platform/internal/verification"
+	"github.com/0xsj/nexus/platform/internal/wallet"
 	"github.com/0xsj/nexus/platform/pkg/database"
 	"github.com/0xsj/nexus/platform/pkg/database/postgres"
 	"github.com/0xsj/nexus/platform/pkg/eventbus"
@@ -136,6 +144,33 @@ func run() error {
 	// Credential
 	credentialProvider := credential.NewProviderWithDefaults(pool, obs.ComponentLogger("credential"))
 
+	// Verification
+	verificationProvider := verification.NewProviderWithDefaults(pool, obs.ComponentLogger("verification"))
+
+	// Wallet
+	walletProvider := wallet.NewProviderWithDefaults(pool, obs.ComponentLogger("wallet"))
+
+	// Organization
+	organizationProvider := organization.NewProviderWithDefaults(pool, obs.ComponentLogger("organization"))
+
+	// Profile
+	profileProvider := profile.NewProviderWithDefaults(pool, obs.ComponentLogger("profile"))
+
+	// Notification
+	notificationProvider := notification.NewProviderWithDefaults(pool, obs.ComponentLogger("notification"))
+
+	// Presentation
+	presentationProvider := presentation.NewProviderWithDefaults(pool, obs.ComponentLogger("presentation"))
+
+	// Trust
+	trustProvider := trust.NewProviderWithDefaults(pool, obs.ComponentLogger("trust"))
+
+	// Integration
+	integrationProvider := integration.NewProviderWithDefaults(pool, obs.ComponentLogger("integration"))
+
+	// Issuer
+	issuerProvider := issuer.NewProviderWithDefaults(pool, obs.ComponentLogger("issuer"))
+
 	// Ledger
 	metadataExtractor := ledgereventbus.NewMetadataExtractor()
 	ledgerProvider := ledger.NewProvider(pool, metadataExtractor)
@@ -157,8 +192,8 @@ func run() error {
 	router.Use(middleware.Logger(obs.ComponentLogger("http")))
 	router.Use(middleware.Recovery())
 
-	// Auth middleware placeholder (no-op for now)
-	authMiddleware := func(next http.Handler) http.Handler { return next }
+	// Auth middleware (validates session tokens via Identity context)
+	authMiddleware := newAuthMiddleware(identityProvider.SessionLookup, obs.ComponentLogger("auth"))
 
 	// Routes
 	router.Route("/api/v1", func(r chi.Router) {
@@ -166,6 +201,15 @@ func run() error {
 	})
 	schemaProvider.RegisterRoutes(router)
 	credentialProvider.RegisterRoutes(router)
+	verificationProvider.RegisterRoutes(router)
+	walletProvider.RegisterRoutes(router)
+	organizationProvider.RegisterRoutes(router)
+	profileProvider.RegisterRoutes(router)
+	notificationProvider.RegisterRoutes(router)
+	presentationProvider.RegisterRoutes(router)
+	trustProvider.RegisterRoutes(router)
+	integrationProvider.RegisterRoutes(router)
+	issuerProvider.RegisterRoutes(router)
 	ledgerProvider.RegisterRoutes(router)
 
 	logger.Info("routes registered")

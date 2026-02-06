@@ -13,13 +13,13 @@ const (
 
 // Event type constants
 const (
-	EventTypeVerificationStarted        = "Verification.Started"
-	EventTypeOAuthCallbackReceived      = "Verification.OAuthCallbackReceived"
-	EventTypeDataFetchCompleted         = "Verification.DataFetchCompleted"
-	EventTypeDataFetchFailed            = "Verification.DataFetchFailed"
-	EventTypeCredentialIssueRequested   = "Verification.CredentialIssueRequested"
-	EventTypeVerificationCompleted      = "Verification.Completed"
-	EventTypeVerificationFailed         = "Verification.Failed"
+	EventTypeVerificationStarted      = "Verification.Started"
+	EventTypeOAuthCallbackReceived    = "Verification.OAuthCallbackReceived"
+	EventTypeDataFetchCompleted       = "Verification.DataFetchCompleted"
+	EventTypeDataFetchFailed          = "Verification.DataFetchFailed"
+	EventTypeCredentialIssueRequested = "Verification.CredentialIssueRequested"
+	EventTypeVerificationCompleted    = "Verification.Completed"
+	EventTypeVerificationFailed       = "Verification.Failed"
 )
 
 // ============================================================================

@@ -102,20 +102,20 @@ func OrganizationFactory() eventsourcing.AggregateFactory {
 // Getters
 // ============================================================================
 
-func (o *Organization) ID() OrganizationID             { return o.id }
-func (o *Organization) Name() string                    { return o.name }
-func (o *Organization) Slug() string                    { return o.slug }
-func (o *Organization) OrgType() OrganizationType       { return o.orgType }
-func (o *Organization) Description() string             { return o.description }
+func (o *Organization) ID() OrganizationID        { return o.id }
+func (o *Organization) Name() string              { return o.name }
+func (o *Organization) Slug() string              { return o.slug }
+func (o *Organization) OrgType() OrganizationType { return o.orgType }
+func (o *Organization) Description() string       { return o.description }
 func (o *Organization) VerificationStatus() VerificationStatus {
 	return o.verificationStatus
 }
-func (o *Organization) DID() string                     { return o.did }
-func (o *Organization) OwnerMemberID() MemberID         { return o.ownerMemberID }
-func (o *Organization) CreatedAt() time.Time            { return o.createdAt }
-func (o *Organization) UpdatedAt() time.Time            { return o.updatedAt }
-func (o *Organization) IsDeleted() bool                 { return o.deleted }
-func (o *Organization) IsVerified() bool                { return o.verificationStatus.IsVerified() }
+func (o *Organization) DID() string             { return o.did }
+func (o *Organization) OwnerMemberID() MemberID { return o.ownerMemberID }
+func (o *Organization) CreatedAt() time.Time    { return o.createdAt }
+func (o *Organization) UpdatedAt() time.Time    { return o.updatedAt }
+func (o *Organization) IsDeleted() bool         { return o.deleted }
+func (o *Organization) IsVerified() bool        { return o.verificationStatus.IsVerified() }
 
 // MemberCount returns the number of active members.
 func (o *Organization) MemberCount() int { return len(o.members) }

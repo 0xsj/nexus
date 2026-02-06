@@ -12,12 +12,12 @@ import (
 // ============================================================================
 
 const (
-	CodeCredentialNotFound      pkgerrors.Code = "CREDENTIAL_NOT_FOUND"
-	CodeCredentialRevoked       pkgerrors.Code = "CREDENTIAL_REVOKED"
-	CodeCredentialExpired       pkgerrors.Code = "CREDENTIAL_EXPIRED"
-	CodeCredentialInvalid       pkgerrors.Code = "CREDENTIAL_INVALID"
-	CodeClaimsValidationFailed  pkgerrors.Code = "CLAIMS_VALIDATION_FAILED"
-	CodeSigningFailed           pkgerrors.Code = "SIGNING_FAILED"
+	CodeCredentialNotFound     pkgerrors.Code = "CREDENTIAL_NOT_FOUND"
+	CodeCredentialRevoked      pkgerrors.Code = "CREDENTIAL_REVOKED"
+	CodeCredentialExpired      pkgerrors.Code = "CREDENTIAL_EXPIRED"
+	CodeCredentialInvalid      pkgerrors.Code = "CREDENTIAL_INVALID"
+	CodeClaimsValidationFailed pkgerrors.Code = "CLAIMS_VALIDATION_FAILED"
+	CodeSigningFailed          pkgerrors.Code = "SIGNING_FAILED"
 )
 
 // ============================================================================
