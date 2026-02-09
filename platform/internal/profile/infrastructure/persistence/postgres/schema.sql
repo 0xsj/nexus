@@ -48,3 +48,15 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 CREATE INDEX idx_profiles_user_id ON profiles(user_id);
 CREATE INDEX idx_profiles_vanity_slug ON profiles(vanity_slug);
+
+-- ============================================================================
+-- Cross-Context Projection Tables
+-- ============================================================================
+
+-- Credential projection (populated via Credential.* events from Credential context)
+CREATE TABLE IF NOT EXISTS profile_credential_projections (
+    credential_id   VARCHAR(255) PRIMARY KEY,
+    credential_type VARCHAR(255) NOT NULL DEFAULT '',
+    status          VARCHAR(50)  NOT NULL DEFAULT 'active',
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);

@@ -36,3 +36,11 @@ type OrganizationEvent struct {
 	Version       int32           `json:"version"`
 	OccurredAt    time.Time       `json:"occurred_at"`
 }
+
+type OrganizationUserProjection struct {
+	UserID     string    `json:"user_id"`
+	Email      string    `json:"email"`
+	PrimaryDid string    `json:"primary_did"`
+	Active     bool      `json:"active"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}

@@ -14,6 +14,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCredentialProjectionsByUserID = `-- name: CountCredentialProjectionsByUserID :one
+SELECT COUNT(*)::integer AS count
+FROM trust_credential_projections
+WHERE user_id = $1 AND status = 'active'
+`
+
+func (q *Queries) CountCredentialProjectionsByUserID(ctx context.Context, userID string) (int32, error) {
+	row := q.db.QueryRow(ctx, countCredentialProjectionsByUserID, userID)
+	var count int32
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countVouchesByVoucheeID = `-- name: CountVouchesByVoucheeID :one
 SELECT COUNT(*)::integer AS count
 FROM vouches
@@ -40,6 +53,19 @@ func (q *Queries) CountVouchesByVoucherID(ctx context.Context, voucherID string)
 	return count, err
 }
 
+const credentialProjectionExists = `-- name: CredentialProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM trust_credential_projections WHERE credential_id = $1 AND status = 'active'
+) AS exists
+`
+
+func (q *Queries) CredentialProjectionExists(ctx context.Context, credentialID string) (bool, error) {
+	row := q.db.QueryRow(ctx, credentialProjectionExists, credentialID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getLatestVouchEventVersion = `-- name: GetLatestVouchEventVersion :one
 SELECT COALESCE(MAX(version), 0)::integer AS version
 FROM vouch_events
@@ -51,6 +77,24 @@ func (q *Queries) GetLatestVouchEventVersion(ctx context.Context, aggregateID uu
 	var version int32
 	err := row.Scan(&version)
 	return version, err
+}
+
+const getOrganizationProjection = `-- name: GetOrganizationProjection :one
+SELECT organization_id, verification_status, active, updated_at
+FROM trust_organization_projections
+WHERE organization_id = $1
+`
+
+func (q *Queries) GetOrganizationProjection(ctx context.Context, organizationID string) (TrustOrganizationProjection, error) {
+	row := q.db.QueryRow(ctx, getOrganizationProjection, organizationID)
+	var i TrustOrganizationProjection
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.VerificationStatus,
+		&i.Active,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getReputationByUserID = `-- name: GetReputationByUserID :one
@@ -77,6 +121,19 @@ func (q *Queries) GetReputationByUserID(ctx context.Context, userID string) (Rep
 		&i.LastCalculatedAt,
 	)
 	return i, err
+}
+
+const getUserIDByDID = `-- name: GetUserIDByDID :one
+SELECT user_id
+FROM trust_user_projections
+WHERE user_id = (SELECT user_id FROM trust_credential_projections WHERE subject_did = $1 LIMIT 1)
+`
+
+func (q *Queries) GetUserIDByDID(ctx context.Context, subjectDid string) (string, error) {
+	row := q.db.QueryRow(ctx, getUserIDByDID, subjectDid)
+	var user_id string
+	err := row.Scan(&user_id)
+	return user_id, err
 }
 
 const getVouchByID = `-- name: GetVouchByID :one
@@ -290,6 +347,142 @@ func (q *Queries) ListVouchesByVoucherID(ctx context.Context, arg ListVouchesByV
 	return items, nil
 }
 
+const updateCredentialProjectionStatus = `-- name: UpdateCredentialProjectionStatus :exec
+UPDATE trust_credential_projections SET status = $2, updated_at = NOW() WHERE credential_id = $1
+`
+
+type UpdateCredentialProjectionStatusParams struct {
+	CredentialID string `json:"credential_id"`
+	Status       string `json:"status"`
+}
+
+func (q *Queries) UpdateCredentialProjectionStatus(ctx context.Context, arg UpdateCredentialProjectionStatusParams) error {
+	_, err := q.db.Exec(ctx, updateCredentialProjectionStatus, arg.CredentialID, arg.Status)
+	return err
+}
+
+const updateOrganizationProjectionActive = `-- name: UpdateOrganizationProjectionActive :exec
+UPDATE trust_organization_projections SET active = $2, updated_at = NOW() WHERE organization_id = $1
+`
+
+type UpdateOrganizationProjectionActiveParams struct {
+	OrganizationID string `json:"organization_id"`
+	Active         bool   `json:"active"`
+}
+
+func (q *Queries) UpdateOrganizationProjectionActive(ctx context.Context, arg UpdateOrganizationProjectionActiveParams) error {
+	_, err := q.db.Exec(ctx, updateOrganizationProjectionActive, arg.OrganizationID, arg.Active)
+	return err
+}
+
+const updateOrganizationProjectionVerified = `-- name: UpdateOrganizationProjectionVerified :exec
+UPDATE trust_organization_projections SET verification_status = $2, updated_at = NOW() WHERE organization_id = $1
+`
+
+type UpdateOrganizationProjectionVerifiedParams struct {
+	OrganizationID     string `json:"organization_id"`
+	VerificationStatus string `json:"verification_status"`
+}
+
+func (q *Queries) UpdateOrganizationProjectionVerified(ctx context.Context, arg UpdateOrganizationProjectionVerifiedParams) error {
+	_, err := q.db.Exec(ctx, updateOrganizationProjectionVerified, arg.OrganizationID, arg.VerificationStatus)
+	return err
+}
+
+const updateUserProjectionActive = `-- name: UpdateUserProjectionActive :exec
+UPDATE trust_user_projections SET active = $2, updated_at = NOW() WHERE user_id = $1
+`
+
+type UpdateUserProjectionActiveParams struct {
+	UserID string `json:"user_id"`
+	Active bool   `json:"active"`
+}
+
+func (q *Queries) UpdateUserProjectionActive(ctx context.Context, arg UpdateUserProjectionActiveParams) error {
+	_, err := q.db.Exec(ctx, updateUserProjectionActive, arg.UserID, arg.Active)
+	return err
+}
+
+const upsertCredentialProjection = `-- name: UpsertCredentialProjection :exec
+
+INSERT INTO trust_credential_projections (credential_id, credential_type, subject_did, user_id, status, updated_at)
+VALUES ($1, $2, $3, $4, $5, NOW())
+ON CONFLICT (credential_id) DO UPDATE SET
+    credential_type = EXCLUDED.credential_type,
+    subject_did = EXCLUDED.subject_did,
+    user_id = EXCLUDED.user_id,
+    status = EXCLUDED.status,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertCredentialProjectionParams struct {
+	CredentialID   string `json:"credential_id"`
+	CredentialType string `json:"credential_type"`
+	SubjectDid     string `json:"subject_did"`
+	UserID         string `json:"user_id"`
+	Status         string `json:"status"`
+}
+
+// ============================================================================
+// Credential Projection Queries
+// ============================================================================
+func (q *Queries) UpsertCredentialProjection(ctx context.Context, arg UpsertCredentialProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertCredentialProjection,
+		arg.CredentialID,
+		arg.CredentialType,
+		arg.SubjectDid,
+		arg.UserID,
+		arg.Status,
+	)
+	return err
+}
+
+const upsertOrganizationProjection = `-- name: UpsertOrganizationProjection :exec
+
+INSERT INTO trust_organization_projections (organization_id, verification_status, active, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (organization_id) DO UPDATE SET
+    verification_status = EXCLUDED.verification_status,
+    active = EXCLUDED.active,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertOrganizationProjectionParams struct {
+	OrganizationID     string `json:"organization_id"`
+	VerificationStatus string `json:"verification_status"`
+	Active             bool   `json:"active"`
+}
+
+// ============================================================================
+// Organization Projection Queries
+// ============================================================================
+func (q *Queries) UpsertOrganizationProjection(ctx context.Context, arg UpsertOrganizationProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertOrganizationProjection, arg.OrganizationID, arg.VerificationStatus, arg.Active)
+	return err
+}
+
+const upsertUserProjection = `-- name: UpsertUserProjection :exec
+
+INSERT INTO trust_user_projections (user_id, active, updated_at)
+VALUES ($1, $2, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    active = EXCLUDED.active,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertUserProjectionParams struct {
+	UserID string `json:"user_id"`
+	Active bool   `json:"active"`
+}
+
+// ============================================================================
+// Identity User Projection Queries
+// ============================================================================
+func (q *Queries) UpsertUserProjection(ctx context.Context, arg UpsertUserProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertUserProjection, arg.UserID, arg.Active)
+	return err
+}
+
 const upsertVouch = `-- name: UpsertVouch :exec
 
 INSERT INTO vouches (
@@ -352,6 +545,19 @@ func (q *Queries) UpsertVouch(ctx context.Context, arg UpsertVouchParams) error 
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const userProjectionExists = `-- name: UserProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM trust_user_projections WHERE user_id = $1 AND active = true
+) AS exists
+`
+
+func (q *Queries) UserProjectionExists(ctx context.Context, userID string) (bool, error) {
+	row := q.db.QueryRow(ctx, userProjectionExists, userID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const vouchAggregateExists = `-- name: VouchAggregateExists :one

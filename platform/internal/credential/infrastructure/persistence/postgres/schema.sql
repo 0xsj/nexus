@@ -58,3 +58,16 @@ CREATE INDEX idx_credentials_issuer_did ON credentials(issuer_did);
 CREATE INDEX idx_credentials_status ON credentials(status);
 CREATE INDEX idx_credentials_subject_status ON credentials(subject_did, status);
 CREATE INDEX idx_credentials_issuer_status ON credentials(issuer_did, status);
+
+-- ============================================================================
+-- Cross-Context Projection Tables
+-- ============================================================================
+
+-- Schema projection (populated via Schema.* events from Schema context)
+CREATE TABLE IF NOT EXISTS credential_schema_projections (
+    schema_id   VARCHAR(255) PRIMARY KEY,
+    schema_type VARCHAR(255) NOT NULL UNIQUE,
+    status      VARCHAR(50)  NOT NULL DEFAULT 'active',
+    claims      JSONB,
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);

@@ -134,3 +134,60 @@ LIMIT $2 OFFSET $3;
 SELECT COUNT(*)::integer AS count
 FROM templates
 WHERE issuer_id = $1;
+
+-- ============================================================================
+-- Organization Projection Queries
+-- ============================================================================
+
+-- name: UpsertOrganizationProjection :exec
+INSERT INTO issuer_organization_projections (organization_id, verification_status, active, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (organization_id) DO UPDATE SET
+    verification_status = EXCLUDED.verification_status,
+    active = EXCLUDED.active,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: GetOrganizationProjection :one
+SELECT organization_id, verification_status, active, updated_at
+FROM issuer_organization_projections
+WHERE organization_id = $1;
+
+-- name: OrganizationProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM issuer_organization_projections WHERE organization_id = $1 AND active = true
+) AS exists;
+
+-- name: UpdateOrganizationProjectionVerified :exec
+UPDATE issuer_organization_projections SET verification_status = $2, updated_at = NOW() WHERE organization_id = $1;
+
+-- name: UpdateOrganizationProjectionActive :exec
+UPDATE issuer_organization_projections SET active = $2, updated_at = NOW() WHERE organization_id = $1;
+
+-- ============================================================================
+-- Schema Projection Queries
+-- ============================================================================
+
+-- name: UpsertSchemaProjection :exec
+INSERT INTO issuer_schema_projections (schema_id, schema_type, status, claims, updated_at)
+VALUES ($1, $2, $3, $4, NOW())
+ON CONFLICT (schema_id) DO UPDATE SET
+    schema_type = EXCLUDED.schema_type,
+    status = EXCLUDED.status,
+    claims = EXCLUDED.claims,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: GetSchemaProjectionByType :one
+SELECT schema_id, schema_type, status, claims, updated_at
+FROM issuer_schema_projections
+WHERE schema_type = $1;
+
+-- name: SchemaProjectionExistsByType :one
+SELECT EXISTS (
+    SELECT 1 FROM issuer_schema_projections WHERE schema_type = $1 AND status = 'active'
+) AS exists;
+
+-- name: UpdateSchemaProjectionStatus :exec
+UPDATE issuer_schema_projections SET status = $2, updated_at = NOW() WHERE schema_id = $1;
+
+-- name: UpdateSchemaProjectionClaims :exec
+UPDATE issuer_schema_projections SET claims = $2, updated_at = NOW() WHERE schema_id = $1;

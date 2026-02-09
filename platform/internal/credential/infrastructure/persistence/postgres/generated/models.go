@@ -39,3 +39,11 @@ type CredentialEvent struct {
 	Version       int32           `json:"version"`
 	OccurredAt    time.Time       `json:"occurred_at"`
 }
+
+type CredentialSchemaProjection struct {
+	SchemaID   string    `json:"schema_id"`
+	SchemaType string    `json:"schema_type"`
+	Status     string    `json:"status"`
+	Claims     []byte    `json:"claims"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}

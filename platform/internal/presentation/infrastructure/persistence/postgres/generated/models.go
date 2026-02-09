@@ -36,6 +36,15 @@ type Presentation struct {
 	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
+type PresentationCredentialProjection struct {
+	CredentialID   string    `json:"credential_id"`
+	CredentialType string    `json:"credential_type"`
+	SubjectDid     string    `json:"subject_did"`
+	UserID         string    `json:"user_id"`
+	Status         string    `json:"status"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 type PresentationEvent struct {
 	ID            uuid.UUID       `json:"id"`
 	AggregateID   uuid.UUID       `json:"aggregate_id"`
@@ -44,6 +53,12 @@ type PresentationEvent struct {
 	EventData     json.RawMessage `json:"event_data"`
 	Version       int32           `json:"version"`
 	OccurredAt    time.Time       `json:"occurred_at"`
+}
+
+type PresentationUserProjection struct {
+	UserID     string    `json:"user_id"`
+	PrimaryDid string    `json:"primary_did"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type ShareLink struct {

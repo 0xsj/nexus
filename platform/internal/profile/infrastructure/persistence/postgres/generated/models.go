@@ -24,6 +24,13 @@ type Profile struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type ProfileCredentialProjection struct {
+	CredentialID   string    `json:"credential_id"`
+	CredentialType string    `json:"credential_type"`
+	Status         string    `json:"status"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 type ProfileEvent struct {
 	ID            uuid.UUID       `json:"id"`
 	AggregateID   uuid.UUID       `json:"aggregate_id"`

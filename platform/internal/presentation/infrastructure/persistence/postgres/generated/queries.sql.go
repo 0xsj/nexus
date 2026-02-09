@@ -53,6 +53,39 @@ func (q *Queries) CountShareLinksByPresentationID(ctx context.Context, presentat
 	return count, err
 }
 
+const credentialProjectionExists = `-- name: CredentialProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM presentation_credential_projections WHERE credential_id = $1 AND status = 'active'
+) AS exists
+`
+
+func (q *Queries) CredentialProjectionExists(ctx context.Context, credentialID string) (bool, error) {
+	row := q.db.QueryRow(ctx, credentialProjectionExists, credentialID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const getCredentialProjection = `-- name: GetCredentialProjection :one
+SELECT credential_id, credential_type, subject_did, user_id, status, updated_at
+FROM presentation_credential_projections
+WHERE credential_id = $1
+`
+
+func (q *Queries) GetCredentialProjection(ctx context.Context, credentialID string) (PresentationCredentialProjection, error) {
+	row := q.db.QueryRow(ctx, getCredentialProjection, credentialID)
+	var i PresentationCredentialProjection
+	err := row.Scan(
+		&i.CredentialID,
+		&i.CredentialType,
+		&i.SubjectDid,
+		&i.UserID,
+		&i.Status,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getLatestPresentationEventVersion = `-- name: GetLatestPresentationEventVersion :one
 SELECT COALESCE(MAX(version), 0)::integer AS version
 FROM presentation_events
@@ -230,6 +263,32 @@ func (q *Queries) GetShareLinkEvents(ctx context.Context, aggregateID uuid.UUID)
 	return items, nil
 }
 
+const getUserIDByDID = `-- name: GetUserIDByDID :one
+SELECT user_id
+FROM presentation_user_projections
+WHERE primary_did = $1
+`
+
+func (q *Queries) GetUserIDByDID(ctx context.Context, primaryDid string) (string, error) {
+	row := q.db.QueryRow(ctx, getUserIDByDID, primaryDid)
+	var user_id string
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
+const getUserProjectionDID = `-- name: GetUserProjectionDID :one
+SELECT primary_did
+FROM presentation_user_projections
+WHERE user_id = $1
+`
+
+func (q *Queries) GetUserProjectionDID(ctx context.Context, userID string) (string, error) {
+	row := q.db.QueryRow(ctx, getUserProjectionDID, userID)
+	var primary_did string
+	err := row.Scan(&primary_did)
+	return primary_did, err
+}
+
 const insertAccessGrant = `-- name: InsertAccessGrant :exec
 
 INSERT INTO access_grants (id, share_link_id, verifier_did, accessed_at, ip_address, disclosed_claims)
@@ -365,6 +424,32 @@ func (q *Queries) ListAccessGrantsByShareLinkID(ctx context.Context, arg ListAcc
 	return items, nil
 }
 
+const listCredentialProjectionsByUserID = `-- name: ListCredentialProjectionsByUserID :many
+SELECT credential_id
+FROM presentation_credential_projections
+WHERE user_id = $1 AND status = 'active'
+`
+
+func (q *Queries) ListCredentialProjectionsByUserID(ctx context.Context, userID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listCredentialProjectionsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var credential_id string
+		if err := rows.Scan(&credential_id); err != nil {
+			return nil, err
+		}
+		items = append(items, credential_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPresentationsByHolderDID = `-- name: ListPresentationsByHolderDID :many
 SELECT id, holder_did, credential_ids, disclosure_policy, vp_jwt, purpose,
        status, revoked_at, revocation_reason, version, created_at, updated_at
@@ -487,6 +572,68 @@ func (q *Queries) ShareLinkAggregateExists(ctx context.Context, aggregateID uuid
 	return exists, err
 }
 
+const updateCredentialProjectionStatus = `-- name: UpdateCredentialProjectionStatus :exec
+UPDATE presentation_credential_projections SET status = $2, updated_at = NOW() WHERE credential_id = $1
+`
+
+type UpdateCredentialProjectionStatusParams struct {
+	CredentialID string `json:"credential_id"`
+	Status       string `json:"status"`
+}
+
+func (q *Queries) UpdateCredentialProjectionStatus(ctx context.Context, arg UpdateCredentialProjectionStatusParams) error {
+	_, err := q.db.Exec(ctx, updateCredentialProjectionStatus, arg.CredentialID, arg.Status)
+	return err
+}
+
+const updateUserProjectionDID = `-- name: UpdateUserProjectionDID :exec
+UPDATE presentation_user_projections SET primary_did = $2, updated_at = NOW() WHERE user_id = $1
+`
+
+type UpdateUserProjectionDIDParams struct {
+	UserID     string `json:"user_id"`
+	PrimaryDid string `json:"primary_did"`
+}
+
+func (q *Queries) UpdateUserProjectionDID(ctx context.Context, arg UpdateUserProjectionDIDParams) error {
+	_, err := q.db.Exec(ctx, updateUserProjectionDID, arg.UserID, arg.PrimaryDid)
+	return err
+}
+
+const upsertCredentialProjection = `-- name: UpsertCredentialProjection :exec
+
+INSERT INTO presentation_credential_projections (credential_id, credential_type, subject_did, user_id, status, updated_at)
+VALUES ($1, $2, $3, $4, $5, NOW())
+ON CONFLICT (credential_id) DO UPDATE SET
+    credential_type = EXCLUDED.credential_type,
+    subject_did = EXCLUDED.subject_did,
+    user_id = EXCLUDED.user_id,
+    status = EXCLUDED.status,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertCredentialProjectionParams struct {
+	CredentialID   string `json:"credential_id"`
+	CredentialType string `json:"credential_type"`
+	SubjectDid     string `json:"subject_did"`
+	UserID         string `json:"user_id"`
+	Status         string `json:"status"`
+}
+
+// ============================================================================
+// Credential Projection Queries
+// ============================================================================
+func (q *Queries) UpsertCredentialProjection(ctx context.Context, arg UpsertCredentialProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertCredentialProjection,
+		arg.CredentialID,
+		arg.CredentialType,
+		arg.SubjectDid,
+		arg.UserID,
+		arg.Status,
+	)
+	return err
+}
+
 const upsertPresentation = `-- name: UpsertPresentation :exec
 
 INSERT INTO presentations (
@@ -585,5 +732,27 @@ func (q *Queries) UpsertShareLink(ctx context.Context, arg UpsertShareLinkParams
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
+	return err
+}
+
+const upsertUserProjection = `-- name: UpsertUserProjection :exec
+
+INSERT INTO presentation_user_projections (user_id, primary_did, updated_at)
+VALUES ($1, $2, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    primary_did = EXCLUDED.primary_did,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertUserProjectionParams struct {
+	UserID     string `json:"user_id"`
+	PrimaryDid string `json:"primary_did"`
+}
+
+// ============================================================================
+// Identity User Projection Queries
+// ============================================================================
+func (q *Queries) UpsertUserProjection(ctx context.Context, arg UpsertUserProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertUserProjection, arg.UserID, arg.PrimaryDid)
 	return err
 }

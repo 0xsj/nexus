@@ -53,3 +53,16 @@ CREATE INDEX idx_organizations_slug ON organizations(slug);
 CREATE INDEX idx_organizations_owner_member_id ON organizations(owner_member_id);
 CREATE INDEX idx_organizations_verification_status ON organizations(verification_status);
 CREATE INDEX idx_organizations_deleted ON organizations(deleted);
+
+-- ============================================================================
+-- Cross-Context Projection Tables
+-- ============================================================================
+
+-- Identity user projection (populated via User.* events from Identity context)
+CREATE TABLE IF NOT EXISTS organization_user_projections (
+    user_id     VARCHAR(255) PRIMARY KEY,
+    email       VARCHAR(255) NOT NULL DEFAULT '',
+    primary_did VARCHAR(512) NOT NULL DEFAULT '',
+    active      BOOLEAN NOT NULL DEFAULT true,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

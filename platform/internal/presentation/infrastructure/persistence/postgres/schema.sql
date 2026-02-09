@@ -92,3 +92,26 @@ CREATE TABLE IF NOT EXISTS access_grants (
     disclosed_claims    JSONB
 );
 CREATE INDEX IF NOT EXISTS idx_access_grants_share_link_id ON access_grants(share_link_id);
+
+-- ============================================================================
+-- Cross-Context Projection Tables
+-- ============================================================================
+
+-- Identity user projection (populated via User.* events from Identity context)
+CREATE TABLE IF NOT EXISTS presentation_user_projections (
+    user_id     VARCHAR(255) PRIMARY KEY,
+    primary_did VARCHAR(512) NOT NULL DEFAULT '',
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Credential projection (populated via Credential.* events from Credential context)
+CREATE TABLE IF NOT EXISTS presentation_credential_projections (
+    credential_id   VARCHAR(255) PRIMARY KEY,
+    credential_type VARCHAR(255) NOT NULL DEFAULT '',
+    subject_did     VARCHAR(512) NOT NULL DEFAULT '',
+    user_id         VARCHAR(255) NOT NULL DEFAULT '',
+    status          VARCHAR(50)  NOT NULL DEFAULT 'active',
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pres_cred_proj_subject ON presentation_credential_projections(subject_did);
+CREATE INDEX IF NOT EXISTS idx_pres_cred_proj_user ON presentation_credential_projections(user_id);

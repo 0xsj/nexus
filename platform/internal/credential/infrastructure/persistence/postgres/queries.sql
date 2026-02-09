@@ -79,3 +79,32 @@ LIMIT $2 OFFSET $3;
 SELECT COUNT(*)::integer AS count
 FROM credentials
 WHERE issuer_did = $1;
+
+-- ============================================================================
+-- Schema Projection Queries
+-- ============================================================================
+
+-- name: UpsertSchemaProjection :exec
+INSERT INTO credential_schema_projections (schema_id, schema_type, status, claims, updated_at)
+VALUES ($1, $2, $3, $4, NOW())
+ON CONFLICT (schema_id) DO UPDATE SET
+    schema_type = EXCLUDED.schema_type,
+    status = EXCLUDED.status,
+    claims = EXCLUDED.claims,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: GetSchemaProjectionByType :one
+SELECT schema_id, schema_type, status, claims, updated_at
+FROM credential_schema_projections
+WHERE schema_type = $1;
+
+-- name: SchemaProjectionExistsByType :one
+SELECT EXISTS (
+    SELECT 1 FROM credential_schema_projections WHERE schema_type = $1 AND status = 'active'
+) AS exists;
+
+-- name: UpdateSchemaProjectionStatus :exec
+UPDATE credential_schema_projections SET status = $2, updated_at = NOW() WHERE schema_id = $1;
+
+-- name: UpdateSchemaProjectionClaims :exec
+UPDATE credential_schema_projections SET claims = $2, updated_at = NOW() WHERE schema_id = $1;

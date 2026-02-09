@@ -9,23 +9,41 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/0xsj/nexus/platform/internal/credential"
+	credentialdomain "github.com/0xsj/nexus/platform/internal/credential/domain"
+	credentialeventbus "github.com/0xsj/nexus/platform/internal/credential/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/identity"
 	identityeventbus "github.com/0xsj/nexus/platform/internal/identity/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/stubs"
 	"github.com/0xsj/nexus/platform/internal/integration"
+	integrationeventbus "github.com/0xsj/nexus/platform/internal/integration/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/issuer"
+	issuerdomain "github.com/0xsj/nexus/platform/internal/issuer/domain"
+	issuereventbus "github.com/0xsj/nexus/platform/internal/issuer/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/ledger"
 	ledgereventbus "github.com/0xsj/nexus/platform/internal/ledger/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/notification"
+	notificationdomain "github.com/0xsj/nexus/platform/internal/notification/domain"
+	notificationeventbus "github.com/0xsj/nexus/platform/internal/notification/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/organization"
+	organizationdomain "github.com/0xsj/nexus/platform/internal/organization/domain"
+	organizationeventbus "github.com/0xsj/nexus/platform/internal/organization/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/presentation"
+	presentationdomain "github.com/0xsj/nexus/platform/internal/presentation/domain"
+	presentationeventbus "github.com/0xsj/nexus/platform/internal/presentation/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/profile"
+	profiledomain "github.com/0xsj/nexus/platform/internal/profile/domain"
+	profileeventbus "github.com/0xsj/nexus/platform/internal/profile/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/schema"
 	schemadomain "github.com/0xsj/nexus/platform/internal/schema/domain"
 	schemaeventbus "github.com/0xsj/nexus/platform/internal/schema/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/trust"
+	trustdomain "github.com/0xsj/nexus/platform/internal/trust/domain"
+	trusteventbus "github.com/0xsj/nexus/platform/internal/trust/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/verification"
+	verificationeventbus "github.com/0xsj/nexus/platform/internal/verification/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/wallet"
+	walletdomain "github.com/0xsj/nexus/platform/internal/wallet/domain"
+	walleteventbus "github.com/0xsj/nexus/platform/internal/wallet/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/pkg/database"
 	"github.com/0xsj/nexus/platform/pkg/database/postgres"
 	"github.com/0xsj/nexus/platform/pkg/eventbus"
@@ -142,34 +160,94 @@ func run() error {
 	)
 
 	// Credential
-	credentialProvider := credential.NewProviderWithDefaults(pool, obs.ComponentLogger("credential"))
+	credentialProvider := credential.NewProvider(credential.ProviderConfig{
+		Pool:           pool,
+		Signer:         &credentialdomain.NullCredentialSigner{},
+		SchemaResolver: &credentialdomain.NullSchemaResolver{},
+		Publisher:      credentialeventbus.NewAdapter(bus),
+		Logger:         obs.ComponentLogger("credential"),
+	})
 
 	// Verification
-	verificationProvider := verification.NewProviderWithDefaults(pool, obs.ComponentLogger("verification"))
+	verificationProvider := verification.NewProvider(verification.ProviderConfig{
+		Pool:      pool,
+		Publisher: verificationeventbus.NewAdapter(bus),
+		Logger:    obs.ComponentLogger("verification"),
+	})
 
 	// Wallet
-	walletProvider := wallet.NewProviderWithDefaults(pool, obs.ComponentLogger("wallet"))
+	walletProvider := wallet.NewProvider(wallet.ProviderConfig{
+		Pool:              pool,
+		SignatureVerifier: walletdomain.NewNullSignatureVerifier(),
+		DIDDeriver:        walletdomain.NewNullDIDDeriver(),
+		ChallengeRepo:     walletdomain.NewNullChallengeRepository(),
+		Publisher:         walleteventbus.NewAdapter(bus),
+		Logger:            obs.ComponentLogger("wallet"),
+	})
 
 	// Organization
-	organizationProvider := organization.NewProviderWithDefaults(pool, obs.ComponentLogger("organization"))
+	organizationProvider := organization.NewProvider(organization.ProviderConfig{
+		Pool:                pool,
+		IdentityReader:      organizationdomain.NewNullIdentityReader(),
+		SlugLookup:          organizationdomain.NewNullSlugLookup(),
+		DIDService:          organizationdomain.NewNullDIDService(),
+		NotificationService: organizationdomain.NewNullNotificationService(),
+		Publisher:           organizationeventbus.NewAdapter(bus),
+		Logger:              obs.ComponentLogger("organization"),
+	})
 
 	// Profile
-	profileProvider := profile.NewProviderWithDefaults(pool, obs.ComponentLogger("profile"))
+	profileProvider := profile.NewProvider(profile.ProviderConfig{
+		Pool:             pool,
+		CredentialReader: profiledomain.NewNullCredentialReader(),
+		Publisher:        profileeventbus.NewAdapter(bus),
+		Logger:           obs.ComponentLogger("profile"),
+	})
 
 	// Notification
-	notificationProvider := notification.NewProviderWithDefaults(pool, obs.ComponentLogger("notification"))
+	notificationProvider := notification.NewProvider(notification.ProviderConfig{
+		Pool:           pool,
+		IdentityReader: notificationdomain.NewNullIdentityReader(),
+		EmailSender:    notificationdomain.NewNullEmailSender(),
+		PushSender:     notificationdomain.NewNullPushSender(),
+		Publisher:      notificationeventbus.NewAdapter(bus),
+		Logger:         obs.ComponentLogger("notification"),
+	})
 
 	// Presentation
-	presentationProvider := presentation.NewProviderWithDefaults(pool, obs.ComponentLogger("presentation"))
+	presentationProvider := presentation.NewProvider(presentation.ProviderConfig{
+		Pool:             pool,
+		CredentialReader: &presentationdomain.NullCredentialReader{},
+		IdentityReader:   &presentationdomain.NullIdentityReader{},
+		Publisher:        presentationeventbus.NewAdapter(bus),
+		Logger:           obs.ComponentLogger("presentation"),
+	})
 
 	// Trust
-	trustProvider := trust.NewProviderWithDefaults(pool, obs.ComponentLogger("trust"))
+	trustProvider := trust.NewProvider(trust.ProviderConfig{
+		Pool:               pool,
+		IdentityReader:     &trustdomain.NullIdentityReader{},
+		CredentialReader:   &trustdomain.NullCredentialReader{},
+		OrganizationReader: &trustdomain.NullOrganizationReader{},
+		Publisher:          trusteventbus.NewAdapter(bus),
+		Logger:             obs.ComponentLogger("trust"),
+	})
 
 	// Integration
-	integrationProvider := integration.NewProviderWithDefaults(pool, obs.ComponentLogger("integration"))
+	integrationProvider := integration.NewProvider(integration.ProviderConfig{
+		Pool:      pool,
+		Publisher: integrationeventbus.NewAdapter(bus),
+		Logger:    obs.ComponentLogger("integration"),
+	})
 
 	// Issuer
-	issuerProvider := issuer.NewProviderWithDefaults(pool, obs.ComponentLogger("issuer"))
+	issuerProvider := issuer.NewProvider(issuer.ProviderConfig{
+		Pool:               pool,
+		OrganizationReader: &issuerdomain.NullOrganizationReader{},
+		SchemaReader:       &issuerdomain.NullSchemaReader{},
+		Publisher:          issuereventbus.NewAdapter(bus),
+		Logger:             obs.ComponentLogger("issuer"),
+	})
 
 	// Ledger
 	metadataExtractor := ledgereventbus.NewMetadataExtractor()

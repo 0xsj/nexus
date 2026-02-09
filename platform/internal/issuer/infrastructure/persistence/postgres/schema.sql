@@ -81,3 +81,24 @@ CREATE INDEX IF NOT EXISTS idx_templates_issuer_id ON templates(issuer_id);
 CREATE INDEX IF NOT EXISTS idx_templates_schema_type ON templates(schema_type);
 CREATE INDEX IF NOT EXISTS idx_templates_status ON templates(status);
 CREATE INDEX IF NOT EXISTS idx_templates_issuer_status ON templates(issuer_id, status);
+
+-- ============================================================================
+-- Cross-Context Projection Tables
+-- ============================================================================
+
+-- Organization projection (populated via Organization.* events from Organization context)
+CREATE TABLE IF NOT EXISTS issuer_organization_projections (
+    organization_id     VARCHAR(255) PRIMARY KEY,
+    verification_status VARCHAR(50)  NOT NULL DEFAULT 'unverified',
+    active              BOOLEAN      NOT NULL DEFAULT true,
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- Schema projection (populated via Schema.* events from Schema context)
+CREATE TABLE IF NOT EXISTS issuer_schema_projections (
+    schema_id   VARCHAR(255) PRIMARY KEY,
+    schema_type VARCHAR(255) NOT NULL UNIQUE,
+    status      VARCHAR(50)  NOT NULL DEFAULT 'active',
+    claims      JSONB,
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);

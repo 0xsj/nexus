@@ -50,3 +50,10 @@ type NotificationPreference struct {
 	Timezone        string    `json:"timezone"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
+
+type NotificationUserProjection struct {
+	UserID    string    `json:"user_id"`
+	Email     string    `json:"email"`
+	Active    bool      `json:"active"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

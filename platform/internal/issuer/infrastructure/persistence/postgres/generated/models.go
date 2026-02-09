@@ -36,6 +36,21 @@ type IssuerEvent struct {
 	OccurredAt    time.Time       `json:"occurred_at"`
 }
 
+type IssuerOrganizationProjection struct {
+	OrganizationID     string    `json:"organization_id"`
+	VerificationStatus string    `json:"verification_status"`
+	Active             bool      `json:"active"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+type IssuerSchemaProjection struct {
+	SchemaID   string    `json:"schema_id"`
+	SchemaType string    `json:"schema_type"`
+	Status     string    `json:"status"`
+	Claims     []byte    `json:"claims"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type Template struct {
 	ID             uuid.UUID `json:"id"`
 	IssuerID       uuid.UUID `json:"issuer_id"`

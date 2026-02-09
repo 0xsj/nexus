@@ -22,6 +22,28 @@ type Reputation struct {
 	LastCalculatedAt time.Time `json:"last_calculated_at"`
 }
 
+type TrustCredentialProjection struct {
+	CredentialID   string    `json:"credential_id"`
+	CredentialType string    `json:"credential_type"`
+	SubjectDid     string    `json:"subject_did"`
+	UserID         string    `json:"user_id"`
+	Status         string    `json:"status"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type TrustOrganizationProjection struct {
+	OrganizationID     string    `json:"organization_id"`
+	VerificationStatus string    `json:"verification_status"`
+	Active             bool      `json:"active"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+type TrustUserProjection struct {
+	UserID    string    `json:"user_id"`
+	Active    bool      `json:"active"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Vouch struct {
 	ID               uuid.UUID          `json:"id"`
 	VoucherID        string             `json:"voucher_id"`

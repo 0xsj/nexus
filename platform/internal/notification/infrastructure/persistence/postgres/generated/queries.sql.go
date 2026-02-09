@@ -142,6 +142,24 @@ func (q *Queries) GetPreferencesByUserID(ctx context.Context, userID string) (No
 	return i, err
 }
 
+const getUserProjection = `-- name: GetUserProjection :one
+SELECT user_id, email, active, updated_at
+FROM notification_user_projections
+WHERE user_id = $1
+`
+
+func (q *Queries) GetUserProjection(ctx context.Context, userID string) (NotificationUserProjection, error) {
+	row := q.db.QueryRow(ctx, getUserProjection, userID)
+	var i NotificationUserProjection
+	err := row.Scan(
+		&i.UserID,
+		&i.Email,
+		&i.Active,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertNotificationEvent = `-- name: InsertNotificationEvent :exec
 
 INSERT INTO notification_events (id, aggregate_id, aggregate_type, event_type, event_data, version, occurred_at)
@@ -264,6 +282,34 @@ func (q *Queries) PreferencesExistByUserID(ctx context.Context, userID string) (
 	return exists, err
 }
 
+const updateUserProjectionActive = `-- name: UpdateUserProjectionActive :exec
+UPDATE notification_user_projections SET active = $2, updated_at = NOW() WHERE user_id = $1
+`
+
+type UpdateUserProjectionActiveParams struct {
+	UserID string `json:"user_id"`
+	Active bool   `json:"active"`
+}
+
+func (q *Queries) UpdateUserProjectionActive(ctx context.Context, arg UpdateUserProjectionActiveParams) error {
+	_, err := q.db.Exec(ctx, updateUserProjectionActive, arg.UserID, arg.Active)
+	return err
+}
+
+const updateUserProjectionEmail = `-- name: UpdateUserProjectionEmail :exec
+UPDATE notification_user_projections SET email = $2, updated_at = NOW() WHERE user_id = $1
+`
+
+type UpdateUserProjectionEmailParams struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+}
+
+func (q *Queries) UpdateUserProjectionEmail(ctx context.Context, arg UpdateUserProjectionEmailParams) error {
+	_, err := q.db.Exec(ctx, updateUserProjectionEmail, arg.UserID, arg.Email)
+	return err
+}
+
 const upsertNotification = `-- name: UpsertNotification :exec
 
 INSERT INTO notifications (
@@ -365,4 +411,41 @@ func (q *Queries) UpsertPreferences(ctx context.Context, arg UpsertPreferencesPa
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const upsertUserProjection = `-- name: UpsertUserProjection :exec
+
+INSERT INTO notification_user_projections (user_id, email, active, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    email = EXCLUDED.email,
+    active = EXCLUDED.active,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertUserProjectionParams struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	Active bool   `json:"active"`
+}
+
+// ============================================================================
+// Identity User Projection Queries
+// ============================================================================
+func (q *Queries) UpsertUserProjection(ctx context.Context, arg UpsertUserProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertUserProjection, arg.UserID, arg.Email, arg.Active)
+	return err
+}
+
+const userProjectionExists = `-- name: UserProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM notification_user_projections WHERE user_id = $1 AND active = true
+) AS exists
+`
+
+func (q *Queries) UserProjectionExists(ctx context.Context, userID string) (bool, error) {
+	row := q.db.QueryRow(ctx, userProjectionExists, userID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

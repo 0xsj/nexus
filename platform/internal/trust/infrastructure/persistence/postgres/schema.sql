@@ -72,3 +72,34 @@ CREATE TABLE IF NOT EXISTS reputations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reputations_overall_score ON reputations(overall_score DESC);
+
+-- ============================================================================
+-- Cross-Context Projection Tables
+-- ============================================================================
+
+-- Identity user projection (populated via User.* events from Identity context)
+CREATE TABLE IF NOT EXISTS trust_user_projections (
+    user_id     VARCHAR(255) PRIMARY KEY,
+    active      BOOLEAN NOT NULL DEFAULT true,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Credential projection (populated via Credential.* events from Credential context)
+CREATE TABLE IF NOT EXISTS trust_credential_projections (
+    credential_id   VARCHAR(255) PRIMARY KEY,
+    credential_type VARCHAR(255) NOT NULL DEFAULT '',
+    subject_did     VARCHAR(512) NOT NULL DEFAULT '',
+    user_id         VARCHAR(255) NOT NULL DEFAULT '',
+    status          VARCHAR(50)  NOT NULL DEFAULT 'active',
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_trust_cred_proj_subject ON trust_credential_projections(subject_did);
+CREATE INDEX IF NOT EXISTS idx_trust_cred_proj_user ON trust_credential_projections(user_id);
+
+-- Organization projection (populated via Organization.* events from Organization context)
+CREATE TABLE IF NOT EXISTS trust_organization_projections (
+    organization_id     VARCHAR(255) PRIMARY KEY,
+    verification_status VARCHAR(50)  NOT NULL DEFAULT 'unverified',
+    active              BOOLEAN      NOT NULL DEFAULT true,
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);

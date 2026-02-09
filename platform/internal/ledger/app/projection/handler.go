@@ -91,16 +91,21 @@ func (h *Handler) AsEventHandler() domain.EventHandler {
 
 // DefaultEventPatterns returns the default event patterns to subscribe to.
 // These cover all major bounded contexts in the platform.
+// Patterns use aggregate type names (PascalCase) to match event types like "User.Registered".
 func DefaultEventPatterns() []string {
 	return []string{
-		"identity.*",
-		"wallet.*",
-		"verification.*",
-		"credential.*",
-		"presentation.*",
-		"trust.*",
-		"organization.*",
-		"schema.*",
+		"User.*", "Session.*", // Identity
+		"Credential.*",                  // Credential
+		"Organization.*",                // Organization
+		"Schema.*",                      // Schema
+		"Wallet.*",                      // Wallet
+		"Verification.*",                // Verification
+		"Vouch.*",                       // Trust
+		"Presentation.*", "ShareLink.*", // Presentation
+		"Profile.*",              // Profile
+		"Notification.*",         // Notification
+		"Integration.*",          // Integration
+		"Issuer.*", "Template.*", // Issuer
 	}
 }
 

@@ -154,6 +154,43 @@ func (q *Queries) GetLatestTemplateEventVersion(ctx context.Context, aggregateID
 	return version, err
 }
 
+const getOrganizationProjection = `-- name: GetOrganizationProjection :one
+SELECT organization_id, verification_status, active, updated_at
+FROM issuer_organization_projections
+WHERE organization_id = $1
+`
+
+func (q *Queries) GetOrganizationProjection(ctx context.Context, organizationID string) (IssuerOrganizationProjection, error) {
+	row := q.db.QueryRow(ctx, getOrganizationProjection, organizationID)
+	var i IssuerOrganizationProjection
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.VerificationStatus,
+		&i.Active,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getSchemaProjectionByType = `-- name: GetSchemaProjectionByType :one
+SELECT schema_id, schema_type, status, claims, updated_at
+FROM issuer_schema_projections
+WHERE schema_type = $1
+`
+
+func (q *Queries) GetSchemaProjectionByType(ctx context.Context, schemaType string) (IssuerSchemaProjection, error) {
+	row := q.db.QueryRow(ctx, getSchemaProjectionByType, schemaType)
+	var i IssuerSchemaProjection
+	err := row.Scan(
+		&i.SchemaID,
+		&i.SchemaType,
+		&i.Status,
+		&i.Claims,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT id, issuer_id, name, description, schema_type, claim_mappings,
        default_values, expiration_days, auto_approve, status, version,
@@ -393,6 +430,32 @@ func (q *Queries) ListTemplatesByIssuerID(ctx context.Context, arg ListTemplates
 	return items, nil
 }
 
+const organizationProjectionExists = `-- name: OrganizationProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM issuer_organization_projections WHERE organization_id = $1 AND active = true
+) AS exists
+`
+
+func (q *Queries) OrganizationProjectionExists(ctx context.Context, organizationID string) (bool, error) {
+	row := q.db.QueryRow(ctx, organizationProjectionExists, organizationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const schemaProjectionExistsByType = `-- name: SchemaProjectionExistsByType :one
+SELECT EXISTS (
+    SELECT 1 FROM issuer_schema_projections WHERE schema_type = $1 AND status = 'active'
+) AS exists
+`
+
+func (q *Queries) SchemaProjectionExistsByType(ctx context.Context, schemaType string) (bool, error) {
+	row := q.db.QueryRow(ctx, schemaProjectionExistsByType, schemaType)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const templateAggregateExists = `-- name: TemplateAggregateExists :one
 SELECT EXISTS (
     SELECT 1 FROM template_events WHERE aggregate_id = $1
@@ -404,6 +467,62 @@ func (q *Queries) TemplateAggregateExists(ctx context.Context, aggregateID uuid.
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const updateOrganizationProjectionActive = `-- name: UpdateOrganizationProjectionActive :exec
+UPDATE issuer_organization_projections SET active = $2, updated_at = NOW() WHERE organization_id = $1
+`
+
+type UpdateOrganizationProjectionActiveParams struct {
+	OrganizationID string `json:"organization_id"`
+	Active         bool   `json:"active"`
+}
+
+func (q *Queries) UpdateOrganizationProjectionActive(ctx context.Context, arg UpdateOrganizationProjectionActiveParams) error {
+	_, err := q.db.Exec(ctx, updateOrganizationProjectionActive, arg.OrganizationID, arg.Active)
+	return err
+}
+
+const updateOrganizationProjectionVerified = `-- name: UpdateOrganizationProjectionVerified :exec
+UPDATE issuer_organization_projections SET verification_status = $2, updated_at = NOW() WHERE organization_id = $1
+`
+
+type UpdateOrganizationProjectionVerifiedParams struct {
+	OrganizationID     string `json:"organization_id"`
+	VerificationStatus string `json:"verification_status"`
+}
+
+func (q *Queries) UpdateOrganizationProjectionVerified(ctx context.Context, arg UpdateOrganizationProjectionVerifiedParams) error {
+	_, err := q.db.Exec(ctx, updateOrganizationProjectionVerified, arg.OrganizationID, arg.VerificationStatus)
+	return err
+}
+
+const updateSchemaProjectionClaims = `-- name: UpdateSchemaProjectionClaims :exec
+UPDATE issuer_schema_projections SET claims = $2, updated_at = NOW() WHERE schema_id = $1
+`
+
+type UpdateSchemaProjectionClaimsParams struct {
+	SchemaID string `json:"schema_id"`
+	Claims   []byte `json:"claims"`
+}
+
+func (q *Queries) UpdateSchemaProjectionClaims(ctx context.Context, arg UpdateSchemaProjectionClaimsParams) error {
+	_, err := q.db.Exec(ctx, updateSchemaProjectionClaims, arg.SchemaID, arg.Claims)
+	return err
+}
+
+const updateSchemaProjectionStatus = `-- name: UpdateSchemaProjectionStatus :exec
+UPDATE issuer_schema_projections SET status = $2, updated_at = NOW() WHERE schema_id = $1
+`
+
+type UpdateSchemaProjectionStatusParams struct {
+	SchemaID string `json:"schema_id"`
+	Status   string `json:"status"`
+}
+
+func (q *Queries) UpdateSchemaProjectionStatus(ctx context.Context, arg UpdateSchemaProjectionStatusParams) error {
+	_, err := q.db.Exec(ctx, updateSchemaProjectionStatus, arg.SchemaID, arg.Status)
+	return err
 }
 
 const upsertIssuer = `-- name: UpsertIssuer :exec
@@ -457,6 +576,61 @@ func (q *Queries) UpsertIssuer(ctx context.Context, arg UpsertIssuerParams) erro
 		arg.Version,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertOrganizationProjection = `-- name: UpsertOrganizationProjection :exec
+
+INSERT INTO issuer_organization_projections (organization_id, verification_status, active, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (organization_id) DO UPDATE SET
+    verification_status = EXCLUDED.verification_status,
+    active = EXCLUDED.active,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertOrganizationProjectionParams struct {
+	OrganizationID     string `json:"organization_id"`
+	VerificationStatus string `json:"verification_status"`
+	Active             bool   `json:"active"`
+}
+
+// ============================================================================
+// Organization Projection Queries
+// ============================================================================
+func (q *Queries) UpsertOrganizationProjection(ctx context.Context, arg UpsertOrganizationProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertOrganizationProjection, arg.OrganizationID, arg.VerificationStatus, arg.Active)
+	return err
+}
+
+const upsertSchemaProjection = `-- name: UpsertSchemaProjection :exec
+
+INSERT INTO issuer_schema_projections (schema_id, schema_type, status, claims, updated_at)
+VALUES ($1, $2, $3, $4, NOW())
+ON CONFLICT (schema_id) DO UPDATE SET
+    schema_type = EXCLUDED.schema_type,
+    status = EXCLUDED.status,
+    claims = EXCLUDED.claims,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertSchemaProjectionParams struct {
+	SchemaID   string `json:"schema_id"`
+	SchemaType string `json:"schema_type"`
+	Status     string `json:"status"`
+	Claims     []byte `json:"claims"`
+}
+
+// ============================================================================
+// Schema Projection Queries
+// ============================================================================
+func (q *Queries) UpsertSchemaProjection(ctx context.Context, arg UpsertSchemaProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertSchemaProjection,
+		arg.SchemaID,
+		arg.SchemaType,
+		arg.Status,
+		arg.Claims,
 	)
 	return err
 }

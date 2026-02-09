@@ -79,3 +79,23 @@ LIMIT $1 OFFSET $2;
 -- name: CountProfiles :one
 SELECT COUNT(*)::integer AS count
 FROM profiles;
+
+-- ============================================================================
+-- Credential Projection Queries
+-- ============================================================================
+
+-- name: UpsertCredentialProjection :exec
+INSERT INTO profile_credential_projections (credential_id, credential_type, status, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (credential_id) DO UPDATE SET
+    credential_type = EXCLUDED.credential_type,
+    status = EXCLUDED.status,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: GetCredentialProjection :one
+SELECT credential_id, credential_type, status, updated_at
+FROM profile_credential_projections
+WHERE credential_id = $1;
+
+-- name: UpdateCredentialProjectionStatus :exec
+UPDATE profile_credential_projections SET status = $2, updated_at = NOW() WHERE credential_id = $1;

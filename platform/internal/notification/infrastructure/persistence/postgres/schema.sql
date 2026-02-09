@@ -70,3 +70,15 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
     timezone         TEXT NOT NULL DEFAULT 'UTC',
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ============================================================================
+-- Cross-Context Projection Tables
+-- ============================================================================
+
+-- Identity user projection (populated via User.* events from Identity context)
+CREATE TABLE IF NOT EXISTS notification_user_projections (
+    user_id     VARCHAR(255) PRIMARY KEY,
+    email       VARCHAR(255) NOT NULL DEFAULT '',
+    active      BOOLEAN NOT NULL DEFAULT true,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

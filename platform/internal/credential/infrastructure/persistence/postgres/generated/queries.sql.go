@@ -145,6 +145,25 @@ func (q *Queries) GetLatestCredentialEventVersion(ctx context.Context, aggregate
 	return version, err
 }
 
+const getSchemaProjectionByType = `-- name: GetSchemaProjectionByType :one
+SELECT schema_id, schema_type, status, claims, updated_at
+FROM credential_schema_projections
+WHERE schema_type = $1
+`
+
+func (q *Queries) GetSchemaProjectionByType(ctx context.Context, schemaType string) (CredentialSchemaProjection, error) {
+	row := q.db.QueryRow(ctx, getSchemaProjectionByType, schemaType)
+	var i CredentialSchemaProjection
+	err := row.Scan(
+		&i.SchemaID,
+		&i.SchemaType,
+		&i.Status,
+		&i.Claims,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertCredentialEvent = `-- name: InsertCredentialEvent :exec
 
 INSERT INTO credential_events (id, aggregate_id, aggregate_type, event_type, event_data, version, occurred_at)
@@ -281,6 +300,47 @@ func (q *Queries) ListCredentialsBySubjectDID(ctx context.Context, arg ListCrede
 	return items, nil
 }
 
+const schemaProjectionExistsByType = `-- name: SchemaProjectionExistsByType :one
+SELECT EXISTS (
+    SELECT 1 FROM credential_schema_projections WHERE schema_type = $1 AND status = 'active'
+) AS exists
+`
+
+func (q *Queries) SchemaProjectionExistsByType(ctx context.Context, schemaType string) (bool, error) {
+	row := q.db.QueryRow(ctx, schemaProjectionExistsByType, schemaType)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const updateSchemaProjectionClaims = `-- name: UpdateSchemaProjectionClaims :exec
+UPDATE credential_schema_projections SET claims = $2, updated_at = NOW() WHERE schema_id = $1
+`
+
+type UpdateSchemaProjectionClaimsParams struct {
+	SchemaID string `json:"schema_id"`
+	Claims   []byte `json:"claims"`
+}
+
+func (q *Queries) UpdateSchemaProjectionClaims(ctx context.Context, arg UpdateSchemaProjectionClaimsParams) error {
+	_, err := q.db.Exec(ctx, updateSchemaProjectionClaims, arg.SchemaID, arg.Claims)
+	return err
+}
+
+const updateSchemaProjectionStatus = `-- name: UpdateSchemaProjectionStatus :exec
+UPDATE credential_schema_projections SET status = $2, updated_at = NOW() WHERE schema_id = $1
+`
+
+type UpdateSchemaProjectionStatusParams struct {
+	SchemaID string `json:"schema_id"`
+	Status   string `json:"status"`
+}
+
+func (q *Queries) UpdateSchemaProjectionStatus(ctx context.Context, arg UpdateSchemaProjectionStatusParams) error {
+	_, err := q.db.Exec(ctx, updateSchemaProjectionStatus, arg.SchemaID, arg.Status)
+	return err
+}
+
 const upsertCredential = `-- name: UpsertCredential :exec
 
 INSERT INTO credentials (
@@ -335,6 +395,37 @@ func (q *Queries) UpsertCredential(ctx context.Context, arg UpsertCredentialPara
 		arg.Version,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertSchemaProjection = `-- name: UpsertSchemaProjection :exec
+
+INSERT INTO credential_schema_projections (schema_id, schema_type, status, claims, updated_at)
+VALUES ($1, $2, $3, $4, NOW())
+ON CONFLICT (schema_id) DO UPDATE SET
+    schema_type = EXCLUDED.schema_type,
+    status = EXCLUDED.status,
+    claims = EXCLUDED.claims,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertSchemaProjectionParams struct {
+	SchemaID   string `json:"schema_id"`
+	SchemaType string `json:"schema_type"`
+	Status     string `json:"status"`
+	Claims     []byte `json:"claims"`
+}
+
+// ============================================================================
+// Schema Projection Queries
+// ============================================================================
+func (q *Queries) UpsertSchemaProjection(ctx context.Context, arg UpsertSchemaProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertSchemaProjection,
+		arg.SchemaID,
+		arg.SchemaType,
+		arg.Status,
+		arg.Claims,
 	)
 	return err
 }

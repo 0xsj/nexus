@@ -99,3 +99,31 @@ WHERE user_id = $1;
 SELECT EXISTS (
     SELECT 1 FROM notification_preferences WHERE user_id = $1
 ) AS exists;
+
+-- ============================================================================
+-- Identity User Projection Queries
+-- ============================================================================
+
+-- name: UpsertUserProjection :exec
+INSERT INTO notification_user_projections (user_id, email, active, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    email = EXCLUDED.email,
+    active = EXCLUDED.active,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: GetUserProjection :one
+SELECT user_id, email, active, updated_at
+FROM notification_user_projections
+WHERE user_id = $1;
+
+-- name: UserProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM notification_user_projections WHERE user_id = $1 AND active = true
+) AS exists;
+
+-- name: UpdateUserProjectionEmail :exec
+UPDATE notification_user_projections SET email = $2, updated_at = NOW() WHERE user_id = $1;
+
+-- name: UpdateUserProjectionActive :exec
+UPDATE notification_user_projections SET active = $2, updated_at = NOW() WHERE user_id = $1;

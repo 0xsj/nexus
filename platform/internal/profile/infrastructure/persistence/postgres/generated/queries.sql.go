@@ -25,6 +25,24 @@ func (q *Queries) CountProfiles(ctx context.Context) (int32, error) {
 	return count, err
 }
 
+const getCredentialProjection = `-- name: GetCredentialProjection :one
+SELECT credential_id, credential_type, status, updated_at
+FROM profile_credential_projections
+WHERE credential_id = $1
+`
+
+func (q *Queries) GetCredentialProjection(ctx context.Context, credentialID string) (ProfileCredentialProjection, error) {
+	row := q.db.QueryRow(ctx, getCredentialProjection, credentialID)
+	var i ProfileCredentialProjection
+	err := row.Scan(
+		&i.CredentialID,
+		&i.CredentialType,
+		&i.Status,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getLatestProfileEventVersion = `-- name: GetLatestProfileEventVersion :one
 SELECT COALESCE(MAX(version), 0)::integer AS version
 FROM profile_events
@@ -261,6 +279,44 @@ func (q *Queries) ProfileExistsByVanitySlug(ctx context.Context, vanitySlug stri
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const updateCredentialProjectionStatus = `-- name: UpdateCredentialProjectionStatus :exec
+UPDATE profile_credential_projections SET status = $2, updated_at = NOW() WHERE credential_id = $1
+`
+
+type UpdateCredentialProjectionStatusParams struct {
+	CredentialID string `json:"credential_id"`
+	Status       string `json:"status"`
+}
+
+func (q *Queries) UpdateCredentialProjectionStatus(ctx context.Context, arg UpdateCredentialProjectionStatusParams) error {
+	_, err := q.db.Exec(ctx, updateCredentialProjectionStatus, arg.CredentialID, arg.Status)
+	return err
+}
+
+const upsertCredentialProjection = `-- name: UpsertCredentialProjection :exec
+
+INSERT INTO profile_credential_projections (credential_id, credential_type, status, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (credential_id) DO UPDATE SET
+    credential_type = EXCLUDED.credential_type,
+    status = EXCLUDED.status,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertCredentialProjectionParams struct {
+	CredentialID   string `json:"credential_id"`
+	CredentialType string `json:"credential_type"`
+	Status         string `json:"status"`
+}
+
+// ============================================================================
+// Credential Projection Queries
+// ============================================================================
+func (q *Queries) UpsertCredentialProjection(ctx context.Context, arg UpsertCredentialProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertCredentialProjection, arg.CredentialID, arg.CredentialType, arg.Status)
+	return err
 }
 
 const upsertProfile = `-- name: UpsertProfile :exec

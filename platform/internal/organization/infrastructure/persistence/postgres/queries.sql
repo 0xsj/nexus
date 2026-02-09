@@ -81,3 +81,35 @@ LIMIT $1 OFFSET $2;
 SELECT COUNT(*)::integer AS count
 FROM organizations
 WHERE NOT deleted;
+
+-- ============================================================================
+-- Identity User Projection Queries
+-- ============================================================================
+
+-- name: UpsertUserProjection :exec
+INSERT INTO organization_user_projections (user_id, email, primary_did, active, updated_at)
+VALUES ($1, $2, $3, $4, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    email = EXCLUDED.email,
+    primary_did = EXCLUDED.primary_did,
+    active = EXCLUDED.active,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: GetUserProjection :one
+SELECT user_id, email, primary_did, active, updated_at
+FROM organization_user_projections
+WHERE user_id = $1;
+
+-- name: UserProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM organization_user_projections WHERE user_id = $1 AND active = true
+) AS exists;
+
+-- name: UpdateUserProjectionEmail :exec
+UPDATE organization_user_projections SET email = $2, updated_at = NOW() WHERE user_id = $1;
+
+-- name: UpdateUserProjectionDID :exec
+UPDATE organization_user_projections SET primary_did = $2, updated_at = NOW() WHERE user_id = $1;
+
+-- name: UpdateUserProjectionActive :exec
+UPDATE organization_user_projections SET active = $2, updated_at = NOW() WHERE user_id = $1;

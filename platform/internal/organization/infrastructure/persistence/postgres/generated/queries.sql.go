@@ -132,6 +132,25 @@ func (q *Queries) GetOrganizationEvents(ctx context.Context, aggregateID uuid.UU
 	return items, nil
 }
 
+const getUserProjection = `-- name: GetUserProjection :one
+SELECT user_id, email, primary_did, active, updated_at
+FROM organization_user_projections
+WHERE user_id = $1
+`
+
+func (q *Queries) GetUserProjection(ctx context.Context, userID string) (OrganizationUserProjection, error) {
+	row := q.db.QueryRow(ctx, getUserProjection, userID)
+	var i OrganizationUserProjection
+	err := row.Scan(
+		&i.UserID,
+		&i.Email,
+		&i.PrimaryDid,
+		&i.Active,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertOrganizationEvent = `-- name: InsertOrganizationEvent :exec
 
 INSERT INTO organization_events (id, aggregate_id, aggregate_type, event_type, event_data, version, occurred_at)
@@ -252,6 +271,48 @@ func (q *Queries) OrganizationExistsBySlug(ctx context.Context, slug string) (bo
 	return exists, err
 }
 
+const updateUserProjectionActive = `-- name: UpdateUserProjectionActive :exec
+UPDATE organization_user_projections SET active = $2, updated_at = NOW() WHERE user_id = $1
+`
+
+type UpdateUserProjectionActiveParams struct {
+	UserID string `json:"user_id"`
+	Active bool   `json:"active"`
+}
+
+func (q *Queries) UpdateUserProjectionActive(ctx context.Context, arg UpdateUserProjectionActiveParams) error {
+	_, err := q.db.Exec(ctx, updateUserProjectionActive, arg.UserID, arg.Active)
+	return err
+}
+
+const updateUserProjectionDID = `-- name: UpdateUserProjectionDID :exec
+UPDATE organization_user_projections SET primary_did = $2, updated_at = NOW() WHERE user_id = $1
+`
+
+type UpdateUserProjectionDIDParams struct {
+	UserID     string `json:"user_id"`
+	PrimaryDid string `json:"primary_did"`
+}
+
+func (q *Queries) UpdateUserProjectionDID(ctx context.Context, arg UpdateUserProjectionDIDParams) error {
+	_, err := q.db.Exec(ctx, updateUserProjectionDID, arg.UserID, arg.PrimaryDid)
+	return err
+}
+
+const updateUserProjectionEmail = `-- name: UpdateUserProjectionEmail :exec
+UPDATE organization_user_projections SET email = $2, updated_at = NOW() WHERE user_id = $1
+`
+
+type UpdateUserProjectionEmailParams struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+}
+
+func (q *Queries) UpdateUserProjectionEmail(ctx context.Context, arg UpdateUserProjectionEmailParams) error {
+	_, err := q.db.Exec(ctx, updateUserProjectionEmail, arg.UserID, arg.Email)
+	return err
+}
+
 const upsertOrganization = `-- name: UpsertOrganization :exec
 
 INSERT INTO organizations (
@@ -308,4 +369,48 @@ func (q *Queries) UpsertOrganization(ctx context.Context, arg UpsertOrganization
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const upsertUserProjection = `-- name: UpsertUserProjection :exec
+
+INSERT INTO organization_user_projections (user_id, email, primary_did, active, updated_at)
+VALUES ($1, $2, $3, $4, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    email = EXCLUDED.email,
+    primary_did = EXCLUDED.primary_did,
+    active = EXCLUDED.active,
+    updated_at = EXCLUDED.updated_at
+`
+
+type UpsertUserProjectionParams struct {
+	UserID     string `json:"user_id"`
+	Email      string `json:"email"`
+	PrimaryDid string `json:"primary_did"`
+	Active     bool   `json:"active"`
+}
+
+// ============================================================================
+// Identity User Projection Queries
+// ============================================================================
+func (q *Queries) UpsertUserProjection(ctx context.Context, arg UpsertUserProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertUserProjection,
+		arg.UserID,
+		arg.Email,
+		arg.PrimaryDid,
+		arg.Active,
+	)
+	return err
+}
+
+const userProjectionExists = `-- name: UserProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM organization_user_projections WHERE user_id = $1 AND active = true
+) AS exists
+`
+
+func (q *Queries) UserProjectionExists(ctx context.Context, userID string) (bool, error) {
+	row := q.db.QueryRow(ctx, userProjectionExists, userID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

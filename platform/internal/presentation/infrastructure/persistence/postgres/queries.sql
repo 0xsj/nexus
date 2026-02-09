@@ -142,3 +142,59 @@ LIMIT $2 OFFSET $3;
 SELECT COUNT(*)::integer AS count
 FROM access_grants
 WHERE share_link_id = $1;
+
+-- ============================================================================
+-- Identity User Projection Queries
+-- ============================================================================
+
+-- name: UpsertUserProjection :exec
+INSERT INTO presentation_user_projections (user_id, primary_did, updated_at)
+VALUES ($1, $2, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    primary_did = EXCLUDED.primary_did,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: GetUserProjectionDID :one
+SELECT primary_did
+FROM presentation_user_projections
+WHERE user_id = $1;
+
+-- name: UpdateUserProjectionDID :exec
+UPDATE presentation_user_projections SET primary_did = $2, updated_at = NOW() WHERE user_id = $1;
+
+-- ============================================================================
+-- Credential Projection Queries
+-- ============================================================================
+
+-- name: UpsertCredentialProjection :exec
+INSERT INTO presentation_credential_projections (credential_id, credential_type, subject_did, user_id, status, updated_at)
+VALUES ($1, $2, $3, $4, $5, NOW())
+ON CONFLICT (credential_id) DO UPDATE SET
+    credential_type = EXCLUDED.credential_type,
+    subject_did = EXCLUDED.subject_did,
+    user_id = EXCLUDED.user_id,
+    status = EXCLUDED.status,
+    updated_at = EXCLUDED.updated_at;
+
+-- name: GetCredentialProjection :one
+SELECT credential_id, credential_type, subject_did, user_id, status, updated_at
+FROM presentation_credential_projections
+WHERE credential_id = $1;
+
+-- name: CredentialProjectionExists :one
+SELECT EXISTS (
+    SELECT 1 FROM presentation_credential_projections WHERE credential_id = $1 AND status = 'active'
+) AS exists;
+
+-- name: ListCredentialProjectionsByUserID :many
+SELECT credential_id
+FROM presentation_credential_projections
+WHERE user_id = $1 AND status = 'active';
+
+-- name: UpdateCredentialProjectionStatus :exec
+UPDATE presentation_credential_projections SET status = $2, updated_at = NOW() WHERE credential_id = $1;
+
+-- name: GetUserIDByDID :one
+SELECT user_id
+FROM presentation_user_projections
+WHERE primary_did = $1;
