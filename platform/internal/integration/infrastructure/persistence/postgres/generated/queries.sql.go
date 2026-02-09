@@ -27,6 +27,29 @@ func (q *Queries) CountIntegrationsByUserID(ctx context.Context, userID string) 
 	return count, err
 }
 
+const countTokensByEncryptionVersion = `-- name: CountTokensByEncryptionVersion :one
+SELECT COUNT(*)::integer AS count
+FROM integration_tokens
+WHERE encryption_version = $1
+`
+
+func (q *Queries) CountTokensByEncryptionVersion(ctx context.Context, encryptionVersion int32) (int32, error) {
+	row := q.db.QueryRow(ctx, countTokensByEncryptionVersion, encryptionVersion)
+	var count int32
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteTokens = `-- name: DeleteTokens :exec
+DELETE FROM integration_tokens
+WHERE integration_id = $1
+`
+
+func (q *Queries) DeleteTokens(ctx context.Context, integrationID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteTokens, integrationID)
+	return err
+}
+
 const getIntegrationByID = `-- name: GetIntegrationByID :one
 SELECT id, user_id, provider_type, status, provider_user_id, provider_username,
        scopes, last_fetch_at, fetch_count, metadata, connected_at, disconnected_at,
@@ -146,6 +169,30 @@ func (q *Queries) GetLatestIntegrationEventVersion(ctx context.Context, aggregat
 	return version, err
 }
 
+const getTokens = `-- name: GetTokens :one
+SELECT integration_id, access_token_encrypted, refresh_token_encrypted,
+       token_type, expires_at, scopes, encryption_version, created_at, updated_at
+FROM integration_tokens
+WHERE integration_id = $1
+`
+
+func (q *Queries) GetTokens(ctx context.Context, integrationID uuid.UUID) (IntegrationToken, error) {
+	row := q.db.QueryRow(ctx, getTokens, integrationID)
+	var i IntegrationToken
+	err := row.Scan(
+		&i.IntegrationID,
+		&i.AccessTokenEncrypted,
+		&i.RefreshTokenEncrypted,
+		&i.TokenType,
+		&i.ExpiresAt,
+		&i.Scopes,
+		&i.EncryptionVersion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertIntegrationEvent = `-- name: InsertIntegrationEvent :exec
 
 INSERT INTO integration_events (id, aggregate_id, aggregate_type, event_type, event_data, version, occurred_at)
@@ -189,6 +236,45 @@ func (q *Queries) IntegrationAggregateExists(ctx context.Context, aggregateID uu
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const listExpiredTokens = `-- name: ListExpiredTokens :many
+SELECT integration_id, access_token_encrypted, refresh_token_encrypted,
+       token_type, expires_at, scopes, encryption_version, created_at, updated_at
+FROM integration_tokens
+WHERE expires_at IS NOT NULL AND expires_at < NOW()
+ORDER BY expires_at ASC
+LIMIT $1
+`
+
+func (q *Queries) ListExpiredTokens(ctx context.Context, limit int32) ([]IntegrationToken, error) {
+	rows, err := q.db.Query(ctx, listExpiredTokens, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IntegrationToken{}
+	for rows.Next() {
+		var i IntegrationToken
+		if err := rows.Scan(
+			&i.IntegrationID,
+			&i.AccessTokenEncrypted,
+			&i.RefreshTokenEncrypted,
+			&i.TokenType,
+			&i.ExpiresAt,
+			&i.Scopes,
+			&i.EncryptionVersion,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listIntegrationsByUserID = `-- name: ListIntegrationsByUserID :many
@@ -236,6 +322,62 @@ func (q *Queries) ListIntegrationsByUserID(ctx context.Context, userID string) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const storeTokens = `-- name: StoreTokens :exec
+
+INSERT INTO integration_tokens (
+    integration_id, access_token_encrypted, refresh_token_encrypted,
+    token_type, expires_at, scopes, encryption_version
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (integration_id) DO UPDATE SET
+    access_token_encrypted = EXCLUDED.access_token_encrypted,
+    refresh_token_encrypted = EXCLUDED.refresh_token_encrypted,
+    token_type = EXCLUDED.token_type,
+    expires_at = EXCLUDED.expires_at,
+    scopes = EXCLUDED.scopes,
+    encryption_version = EXCLUDED.encryption_version,
+    updated_at = NOW()
+`
+
+type StoreTokensParams struct {
+	IntegrationID         uuid.UUID          `json:"integration_id"`
+	AccessTokenEncrypted  []byte             `json:"access_token_encrypted"`
+	RefreshTokenEncrypted []byte             `json:"refresh_token_encrypted"`
+	TokenType             string             `json:"token_type"`
+	ExpiresAt             pgtype.Timestamptz `json:"expires_at"`
+	Scopes                []string           `json:"scopes"`
+	EncryptionVersion     int32              `json:"encryption_version"`
+}
+
+// ============================================================================
+// OAuth Token Storage Queries
+// ============================================================================
+func (q *Queries) StoreTokens(ctx context.Context, arg StoreTokensParams) error {
+	_, err := q.db.Exec(ctx, storeTokens,
+		arg.IntegrationID,
+		arg.AccessTokenEncrypted,
+		arg.RefreshTokenEncrypted,
+		arg.TokenType,
+		arg.ExpiresAt,
+		arg.Scopes,
+		arg.EncryptionVersion,
+	)
+	return err
+}
+
+const tokensExist = `-- name: TokensExist :one
+SELECT EXISTS (
+    SELECT 1 FROM integration_tokens WHERE integration_id = $1
+) AS exists
+`
+
+func (q *Queries) TokensExist(ctx context.Context, integrationID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, tokensExist, integrationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const upsertIntegration = `-- name: UpsertIntegration :exec

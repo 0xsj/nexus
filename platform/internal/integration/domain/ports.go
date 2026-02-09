@@ -17,6 +17,25 @@ type EventPublisher interface {
 }
 
 // ============================================================================
+// Token Storage Port
+// ============================================================================
+
+// TokenStorage stores and retrieves OAuth tokens for integrations.
+type TokenStorage interface {
+	// Store stores OAuth tokens for an integration.
+	Store(ctx context.Context, integrationID string, tokens *OAuthTokens) error
+
+	// Get retrieves OAuth tokens for an integration.
+	Get(ctx context.Context, integrationID string) (*OAuthTokens, error)
+
+	// Delete deletes OAuth tokens for an integration.
+	Delete(ctx context.Context, integrationID string) error
+
+	// Update updates OAuth tokens for an integration.
+	Update(ctx context.Context, integrationID string, tokens *OAuthTokens) error
+}
+
+// ============================================================================
 // Null Implementations
 // ============================================================================
 

@@ -41,3 +41,15 @@ type IntegrationEvent struct {
 	Version       int32           `json:"version"`
 	OccurredAt    time.Time       `json:"occurred_at"`
 }
+
+type IntegrationToken struct {
+	IntegrationID         uuid.UUID          `json:"integration_id"`
+	AccessTokenEncrypted  []byte             `json:"access_token_encrypted"`
+	RefreshTokenEncrypted []byte             `json:"refresh_token_encrypted"`
+	TokenType             string             `json:"token_type"`
+	ExpiresAt             pgtype.Timestamptz `json:"expires_at"`
+	Scopes                []string           `json:"scopes"`
+	EncryptionVersion     int32              `json:"encryption_version"`
+	CreatedAt             time.Time          `json:"created_at"`
+	UpdatedAt             time.Time          `json:"updated_at"`
+}

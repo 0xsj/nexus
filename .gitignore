@@ -58,3 +58,14 @@ infra/.env
 *.log
 *.tmp
 .env
+
+# ====================
+# Project Tracking/Status Files
+# ====================
+# Status tracking files
+**/STATUS.md
+**/IMPLEMENTATION_STATUS.md
+**/*_COMPLETE.md
+
+# Project instructions (use project-level settings instead)
+CLAUDE.md
