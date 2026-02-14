@@ -8,6 +8,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/credential/app/query"
 	"github.com/0xsj/nexus/platform/internal/credential/domain"
 	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/persistence/postgres"
+	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/persistence/postgres/generated"
+	"github.com/0xsj/nexus/platform/internal/credential/infrastructure/projections"
 	v1 "github.com/0xsj/nexus/platform/internal/credential/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -21,6 +23,9 @@ type Provider struct {
 	// Infrastructure
 	Repository       domain.CredentialRepository
 	CredentialLookup *postgres.CredentialLookup
+
+	// Projections
+	SchemaProjector *projections.SchemaProjector
 
 	// Application
 	CommandHandlers *command.Handlers
@@ -53,11 +58,21 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	repository := postgres.NewCredentialRepository(cfg.Pool)
 	lookup := postgres.NewCredentialLookup(cfg.Pool)
 
+	// Projections
+	projQueries := generated.New(cfg.Pool)
+	schemaProjector := projections.NewSchemaProjector(projQueries)
+
+	// Use projection-backed schema resolver if none provided
+	schemaResolver := cfg.SchemaResolver
+	if schemaResolver == nil {
+		schemaResolver = projections.NewSchemaReader(projQueries)
+	}
+
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		repository,
 		cfg.Signer,
-		cfg.SchemaResolver,
+		schemaResolver,
 		cfg.Publisher,
 		cfg.Logger,
 	)
@@ -74,6 +89,7 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	return &Provider{
 		Repository:       repository,
 		CredentialLookup: lookup,
+		SchemaProjector:  schemaProjector,
 		CommandHandlers:  commandHandlers,
 		QueryHandlers:    queryHandlers,
 		HTTPHandler:      httpHandler,

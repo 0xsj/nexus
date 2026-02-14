@@ -8,6 +8,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/notification/app/query"
 	"github.com/0xsj/nexus/platform/internal/notification/domain"
 	"github.com/0xsj/nexus/platform/internal/notification/infrastructure/persistence/postgres"
+	"github.com/0xsj/nexus/platform/internal/notification/infrastructure/persistence/postgres/generated"
+	"github.com/0xsj/nexus/platform/internal/notification/infrastructure/projections"
 	v1 "github.com/0xsj/nexus/platform/internal/notification/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -22,6 +24,9 @@ type Provider struct {
 	NotificationRepo   *postgres.NotificationRepository
 	PreferencesRepo    *postgres.PreferencesRepository
 	NotificationLookup *postgres.NotificationLookup
+
+	// Projections
+	IdentityProjector *projections.IdentityProjector
 
 	// Application
 	CommandHandlers *command.Handlers
@@ -56,6 +61,10 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	preferencesRepo := postgres.NewPreferencesRepository(cfg.Pool)
 	lookup := postgres.NewNotificationLookup(cfg.Pool)
 
+	// Projections
+	projQueries := generated.New(cfg.Pool)
+	identityProjector := projections.NewIdentityProjector(projQueries)
+
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		notificationRepo,
@@ -78,6 +87,7 @@ func NewProvider(cfg ProviderConfig) *Provider {
 		NotificationRepo:   notificationRepo,
 		PreferencesRepo:    preferencesRepo,
 		NotificationLookup: lookup,
+		IdentityProjector:  identityProjector,
 		CommandHandlers:    commandHandlers,
 		QueryHandlers:      queryHandlers,
 		HTTPHandler:        httpHandler,

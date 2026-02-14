@@ -8,6 +8,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/presentation/app/query"
 	"github.com/0xsj/nexus/platform/internal/presentation/domain"
 	"github.com/0xsj/nexus/platform/internal/presentation/infrastructure/persistence/postgres"
+	"github.com/0xsj/nexus/platform/internal/presentation/infrastructure/persistence/postgres/generated"
+	"github.com/0xsj/nexus/platform/internal/presentation/infrastructure/projections"
 	v1 "github.com/0xsj/nexus/platform/internal/presentation/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -23,6 +25,10 @@ type Provider struct {
 	ShareLinkRepo      domain.ShareLinkRepository
 	PresentationLookup *postgres.PresentationLookup
 	ShareLinkLookup    *postgres.ShareLinkLookup
+
+	// Projections
+	IdentityProjector   *projections.IdentityProjector
+	CredentialProjector *projections.CredentialProjector
 
 	// Application
 	CommandHandlers *command.Handlers
@@ -57,6 +63,11 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	presentationLookup := postgres.NewPresentationLookup(cfg.Pool)
 	shareLinkLookup := postgres.NewShareLinkLookup(cfg.Pool)
 
+	// Projections
+	projQueries := generated.New(cfg.Pool)
+	identityProjector := projections.NewIdentityProjector(projQueries)
+	credentialProjector := projections.NewCredentialProjector(projQueries)
+
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		presentationRepo,
@@ -77,13 +88,15 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	httpHandler := v1.NewHandler(commandHandlers, queryHandlers)
 
 	return &Provider{
-		PresentationRepo:   presentationRepo,
-		ShareLinkRepo:      shareLinkRepo,
-		PresentationLookup: presentationLookup,
-		ShareLinkLookup:    shareLinkLookup,
-		CommandHandlers:    commandHandlers,
-		QueryHandlers:      queryHandlers,
-		HTTPHandler:        httpHandler,
+		PresentationRepo:    presentationRepo,
+		ShareLinkRepo:       shareLinkRepo,
+		PresentationLookup:  presentationLookup,
+		ShareLinkLookup:     shareLinkLookup,
+		IdentityProjector:   identityProjector,
+		CredentialProjector: credentialProjector,
+		CommandHandlers:     commandHandlers,
+		QueryHandlers:       queryHandlers,
+		HTTPHandler:         httpHandler,
 	}
 }
 

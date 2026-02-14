@@ -8,6 +8,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/organization/app/query"
 	"github.com/0xsj/nexus/platform/internal/organization/domain"
 	"github.com/0xsj/nexus/platform/internal/organization/infrastructure/persistence/postgres"
+	"github.com/0xsj/nexus/platform/internal/organization/infrastructure/persistence/postgres/generated"
+	"github.com/0xsj/nexus/platform/internal/organization/infrastructure/projections"
 	v1 "github.com/0xsj/nexus/platform/internal/organization/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -21,6 +23,9 @@ type Provider struct {
 	// Infrastructure
 	Repository         domain.OrganizationRepository
 	OrganizationLookup *postgres.OrganizationLookup
+
+	// Projections
+	IdentityProjector *projections.IdentityProjector
 
 	// Application
 	CommandHandlers *command.Handlers
@@ -55,6 +60,16 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	repository := postgres.NewOrganizationRepository(cfg.Pool)
 	lookup := postgres.NewOrganizationLookup(cfg.Pool)
 
+	// Projections
+	projQueries := generated.New(cfg.Pool)
+	identityProjector := projections.NewIdentityProjector(projQueries)
+
+	// Use projection-backed identity reader if none provided
+	identityReader := cfg.IdentityReader
+	if identityReader == nil {
+		identityReader = projections.NewIdentityReader(projQueries)
+	}
+
 	// Use lookup as slug lookup if not provided
 	slugLookup := cfg.SlugLookup
 	if slugLookup == nil {
@@ -65,7 +80,7 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	commandHandlers := command.NewHandlers(
 		repository,
 		slugLookup,
-		cfg.IdentityReader,
+		identityReader,
 		cfg.Publisher,
 		cfg.Logger,
 	)
@@ -82,6 +97,7 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	return &Provider{
 		Repository:         repository,
 		OrganizationLookup: lookup,
+		IdentityProjector:  identityProjector,
 		CommandHandlers:    commandHandlers,
 		QueryHandlers:      queryHandlers,
 		HTTPHandler:        httpHandler,

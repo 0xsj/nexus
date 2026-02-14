@@ -8,6 +8,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/trust/app/query"
 	"github.com/0xsj/nexus/platform/internal/trust/domain"
 	"github.com/0xsj/nexus/platform/internal/trust/infrastructure/persistence/postgres"
+	"github.com/0xsj/nexus/platform/internal/trust/infrastructure/persistence/postgres/generated"
+	"github.com/0xsj/nexus/platform/internal/trust/infrastructure/projections"
 	v1 "github.com/0xsj/nexus/platform/internal/trust/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -22,6 +24,11 @@ type Provider struct {
 	VouchRepo        domain.VouchRepository
 	VouchLookup      *postgres.VouchLookup
 	ReputationLookup *postgres.ReputationLookup
+
+	// Projections
+	IdentityProjector     *projections.IdentityProjector
+	CredentialProjector   *projections.CredentialProjector
+	OrganizationProjector *projections.OrganizationProjector
 
 	// Application
 	CommandHandlers *command.Handlers
@@ -56,6 +63,12 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	vouchLookup := postgres.NewVouchLookup(cfg.Pool)
 	reputationLookup := postgres.NewReputationLookup(cfg.Pool)
 
+	// Projections
+	projQueries := generated.New(cfg.Pool)
+	identityProjector := projections.NewIdentityProjector(projQueries)
+	credentialProjector := projections.NewCredentialProjector(projQueries)
+	organizationProjector := projections.NewOrganizationProjector(projQueries)
+
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		repository,
@@ -74,12 +87,15 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	httpHandler := v1.NewHandler(commandHandlers, queryHandlers)
 
 	return &Provider{
-		VouchRepo:        repository,
-		VouchLookup:      vouchLookup,
-		ReputationLookup: reputationLookup,
-		CommandHandlers:  commandHandlers,
-		QueryHandlers:    queryHandlers,
-		HTTPHandler:      httpHandler,
+		VouchRepo:             repository,
+		VouchLookup:           vouchLookup,
+		ReputationLookup:      reputationLookup,
+		IdentityProjector:     identityProjector,
+		CredentialProjector:   credentialProjector,
+		OrganizationProjector: organizationProjector,
+		CommandHandlers:       commandHandlers,
+		QueryHandlers:         queryHandlers,
+		HTTPHandler:           httpHandler,
 	}
 }
 

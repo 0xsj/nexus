@@ -17,7 +17,6 @@ import (
 	"github.com/0xsj/nexus/platform/internal/integration"
 	integrationeventbus "github.com/0xsj/nexus/platform/internal/integration/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/issuer"
-	issuerdomain "github.com/0xsj/nexus/platform/internal/issuer/domain"
 	issuereventbus "github.com/0xsj/nexus/platform/internal/issuer/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/ledger"
 	ledgereventbus "github.com/0xsj/nexus/platform/internal/ledger/infrastructure/eventbus"
@@ -28,16 +27,13 @@ import (
 	organizationdomain "github.com/0xsj/nexus/platform/internal/organization/domain"
 	organizationeventbus "github.com/0xsj/nexus/platform/internal/organization/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/presentation"
-	presentationdomain "github.com/0xsj/nexus/platform/internal/presentation/domain"
 	presentationeventbus "github.com/0xsj/nexus/platform/internal/presentation/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/profile"
-	profiledomain "github.com/0xsj/nexus/platform/internal/profile/domain"
 	profileeventbus "github.com/0xsj/nexus/platform/internal/profile/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/schema"
 	schemadomain "github.com/0xsj/nexus/platform/internal/schema/domain"
 	schemaeventbus "github.com/0xsj/nexus/platform/internal/schema/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/trust"
-	trustdomain "github.com/0xsj/nexus/platform/internal/trust/domain"
 	trusteventbus "github.com/0xsj/nexus/platform/internal/trust/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/verification"
 	verificationeventbus "github.com/0xsj/nexus/platform/internal/verification/infrastructure/eventbus"
@@ -159,13 +155,12 @@ func run() error {
 		obs.ComponentLogger("schema"),
 	)
 
-	// Credential
+	// Credential (nil SchemaResolver → uses projection-backed reader)
 	credentialProvider := credential.NewProvider(credential.ProviderConfig{
-		Pool:           pool,
-		Signer:         &credentialdomain.NullCredentialSigner{},
-		SchemaResolver: &credentialdomain.NullSchemaResolver{},
-		Publisher:      credentialeventbus.NewAdapter(bus),
-		Logger:         obs.ComponentLogger("credential"),
+		Pool:      pool,
+		Signer:    &credentialdomain.NullCredentialSigner{},
+		Publisher: credentialeventbus.NewAdapter(bus),
+		Logger:    obs.ComponentLogger("credential"),
 	})
 
 	// Verification
@@ -185,10 +180,9 @@ func run() error {
 		Logger:            obs.ComponentLogger("wallet"),
 	})
 
-	// Organization
+	// Organization (nil IdentityReader → uses projection-backed reader)
 	organizationProvider := organization.NewProvider(organization.ProviderConfig{
 		Pool:                pool,
-		IdentityReader:      organizationdomain.NewNullIdentityReader(),
 		SlugLookup:          organizationdomain.NewNullSlugLookup(),
 		DIDService:          organizationdomain.NewNullDIDService(),
 		NotificationService: organizationdomain.NewNullNotificationService(),
@@ -196,41 +190,34 @@ func run() error {
 		Logger:              obs.ComponentLogger("organization"),
 	})
 
-	// Profile
+	// Profile (nil CredentialReader → uses projection-backed reader)
 	profileProvider := profile.NewProvider(profile.ProviderConfig{
-		Pool:             pool,
-		CredentialReader: profiledomain.NewNullCredentialReader(),
-		Publisher:        profileeventbus.NewAdapter(bus),
-		Logger:           obs.ComponentLogger("profile"),
+		Pool:      pool,
+		Publisher: profileeventbus.NewAdapter(bus),
+		Logger:    obs.ComponentLogger("profile"),
 	})
 
 	// Notification
 	notificationProvider := notification.NewProvider(notification.ProviderConfig{
-		Pool:           pool,
-		IdentityReader: notificationdomain.NewNullIdentityReader(),
-		EmailSender:    notificationdomain.NewNullEmailSender(),
-		PushSender:     notificationdomain.NewNullPushSender(),
-		Publisher:      notificationeventbus.NewAdapter(bus),
-		Logger:         obs.ComponentLogger("notification"),
+		Pool:        pool,
+		EmailSender: notificationdomain.NewNullEmailSender(),
+		PushSender:  notificationdomain.NewNullPushSender(),
+		Publisher:   notificationeventbus.NewAdapter(bus),
+		Logger:      obs.ComponentLogger("notification"),
 	})
 
-	// Presentation
+	// Presentation (nil readers → projections populate tables for future use)
 	presentationProvider := presentation.NewProvider(presentation.ProviderConfig{
-		Pool:             pool,
-		CredentialReader: &presentationdomain.NullCredentialReader{},
-		IdentityReader:   &presentationdomain.NullIdentityReader{},
-		Publisher:        presentationeventbus.NewAdapter(bus),
-		Logger:           obs.ComponentLogger("presentation"),
+		Pool:      pool,
+		Publisher: presentationeventbus.NewAdapter(bus),
+		Logger:    obs.ComponentLogger("presentation"),
 	})
 
-	// Trust
+	// Trust (nil readers → projections populate tables for future use)
 	trustProvider := trust.NewProvider(trust.ProviderConfig{
-		Pool:               pool,
-		IdentityReader:     &trustdomain.NullIdentityReader{},
-		CredentialReader:   &trustdomain.NullCredentialReader{},
-		OrganizationReader: &trustdomain.NullOrganizationReader{},
-		Publisher:          trusteventbus.NewAdapter(bus),
-		Logger:             obs.ComponentLogger("trust"),
+		Pool:      pool,
+		Publisher: trusteventbus.NewAdapter(bus),
+		Logger:    obs.ComponentLogger("trust"),
 	})
 
 	// Integration
@@ -240,13 +227,11 @@ func run() error {
 		Logger:    obs.ComponentLogger("integration"),
 	})
 
-	// Issuer
+	// Issuer (nil readers → uses projection-backed readers)
 	issuerProvider := issuer.NewProvider(issuer.ProviderConfig{
-		Pool:               pool,
-		OrganizationReader: &issuerdomain.NullOrganizationReader{},
-		SchemaReader:       &issuerdomain.NullSchemaReader{},
-		Publisher:          issuereventbus.NewAdapter(bus),
-		Logger:             obs.ComponentLogger("issuer"),
+		Pool:      pool,
+		Publisher: issuereventbus.NewAdapter(bus),
+		Logger:    obs.ComponentLogger("issuer"),
 	})
 
 	// Ledger
@@ -258,6 +243,53 @@ func run() error {
 	if err := ledgerProvider.SubscribeToEvents(ledgerSubscriber); err != nil {
 		return fmt.Errorf("subscribing ledger to events: %w", err)
 	}
+
+	// ========================================================================
+	// Cross-Context Projector Subscriptions
+	// ========================================================================
+
+	// Identity events → Organization, Notification, Presentation, Trust
+	if _, err := bus.Subscribe(ctx, "User.*", organizationProvider.IdentityProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing organization identity projector: %w", err)
+	}
+	if _, err := bus.Subscribe(ctx, "User.*", notificationProvider.IdentityProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing notification identity projector: %w", err)
+	}
+	if _, err := bus.Subscribe(ctx, "User.*", presentationProvider.IdentityProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing presentation identity projector: %w", err)
+	}
+	if _, err := bus.Subscribe(ctx, "User.*", trustProvider.IdentityProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing trust identity projector: %w", err)
+	}
+
+	// Schema events → Credential, Issuer
+	if _, err := bus.Subscribe(ctx, "Schema.*", credentialProvider.SchemaProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing credential schema projector: %w", err)
+	}
+	if _, err := bus.Subscribe(ctx, "Schema.*", issuerProvider.SchemaProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing issuer schema projector: %w", err)
+	}
+
+	// Credential events → Presentation, Profile, Trust
+	if _, err := bus.Subscribe(ctx, "Credential.*", presentationProvider.CredentialProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing presentation credential projector: %w", err)
+	}
+	if _, err := bus.Subscribe(ctx, "Credential.*", profileProvider.CredentialProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing profile credential projector: %w", err)
+	}
+	if _, err := bus.Subscribe(ctx, "Credential.*", trustProvider.CredentialProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing trust credential projector: %w", err)
+	}
+
+	// Organization events → Trust, Issuer
+	if _, err := bus.Subscribe(ctx, "Organization.*", trustProvider.OrganizationProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing trust organization projector: %w", err)
+	}
+	if _, err := bus.Subscribe(ctx, "Organization.*", issuerProvider.OrganizationProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing issuer organization projector: %w", err)
+	}
+
+	logger.Info("cross-context projectors subscribed")
 
 	// ========================================================================
 	// HTTP Router

@@ -10,6 +10,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/profile/app/query"
 	"github.com/0xsj/nexus/platform/internal/profile/domain"
 	"github.com/0xsj/nexus/platform/internal/profile/infrastructure/persistence/postgres"
+	"github.com/0xsj/nexus/platform/internal/profile/infrastructure/persistence/postgres/generated"
+	"github.com/0xsj/nexus/platform/internal/profile/infrastructure/projections"
 	v1 "github.com/0xsj/nexus/platform/internal/profile/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -23,6 +25,9 @@ type Provider struct {
 	// Infrastructure
 	Repository    domain.ProfileRepository
 	ProfileLookup *postgres.ProfileLookup
+
+	// Projections
+	CredentialProjector *projections.CredentialProjector
 
 	// Application
 	CommandHandlers *command.Handlers
@@ -55,6 +60,16 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	repository := postgres.NewProfileRepository(cfg.Pool)
 	lookup := postgres.NewProfileLookup(cfg.Pool)
 
+	// Projections
+	projQueries := generated.New(cfg.Pool)
+	credentialProjector := projections.NewCredentialProjector(projQueries)
+
+	// Use projection-backed credential reader if none provided
+	credentialReader := cfg.CredentialReader
+	if credentialReader == nil {
+		credentialReader = projections.NewCredentialReader(projQueries)
+	}
+
 	// Use the lookup as vanity slug lookup if none provided
 	vanitySlugLookup := cfg.VanitySlugLookup
 	if vanitySlugLookup == nil {
@@ -65,7 +80,7 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	commandHandlers := command.NewHandlers(
 		repository,
 		vanitySlugLookup,
-		cfg.CredentialReader,
+		credentialReader,
 		cfg.Publisher,
 		cfg.Logger,
 	)
@@ -80,11 +95,12 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	httpHandler := v1.NewHandler(commandHandlers, queryHandlers)
 
 	return &Provider{
-		Repository:      repository,
-		ProfileLookup:   lookup,
-		CommandHandlers: commandHandlers,
-		QueryHandlers:   queryHandlers,
-		HTTPHandler:     httpHandler,
+		Repository:          repository,
+		ProfileLookup:       lookup,
+		CredentialProjector: credentialProjector,
+		CommandHandlers:     commandHandlers,
+		QueryHandlers:       queryHandlers,
+		HTTPHandler:         httpHandler,
 	}
 }
 

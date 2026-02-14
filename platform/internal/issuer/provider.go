@@ -8,6 +8,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/issuer/app/query"
 	"github.com/0xsj/nexus/platform/internal/issuer/domain"
 	"github.com/0xsj/nexus/platform/internal/issuer/infrastructure/persistence/postgres"
+	"github.com/0xsj/nexus/platform/internal/issuer/infrastructure/persistence/postgres/generated"
+	"github.com/0xsj/nexus/platform/internal/issuer/infrastructure/projections"
 	v1 "github.com/0xsj/nexus/platform/internal/issuer/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -23,6 +25,10 @@ type Provider struct {
 	TemplateRepo   domain.TemplateRepository
 	IssuerLookup   *postgres.IssuerLookup
 	TemplateLookup *postgres.TemplateLookup
+
+	// Projections
+	OrganizationProjector *projections.OrganizationProjector
+	SchemaProjector       *projections.SchemaProjector
 
 	// Application
 	CommandHandlers *command.Handlers
@@ -57,12 +63,27 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	issuerLookup := postgres.NewIssuerLookup(cfg.Pool)
 	templateLookup := postgres.NewTemplateLookup(cfg.Pool)
 
+	// Projections
+	projQueries := generated.New(cfg.Pool)
+	organizationProjector := projections.NewOrganizationProjector(projQueries)
+	schemaProjector := projections.NewSchemaProjector(projQueries)
+
+	// Use projection-backed readers if none provided
+	organizationReader := cfg.OrganizationReader
+	if organizationReader == nil {
+		organizationReader = projections.NewOrganizationReader(projQueries)
+	}
+	schemaReader := cfg.SchemaReader
+	if schemaReader == nil {
+		schemaReader = projections.NewSchemaReader(projQueries)
+	}
+
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		issuerRepo,
 		templateRepo,
-		cfg.OrganizationReader,
-		cfg.SchemaReader,
+		organizationReader,
+		schemaReader,
 		cfg.Publisher,
 		cfg.Logger,
 	)
@@ -78,13 +99,15 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	httpHandler := v1.NewHandler(commandHandlers, queryHandlers)
 
 	return &Provider{
-		IssuerRepo:      issuerRepo,
-		TemplateRepo:    templateRepo,
-		IssuerLookup:    issuerLookup,
-		TemplateLookup:  templateLookup,
-		CommandHandlers: commandHandlers,
-		QueryHandlers:   queryHandlers,
-		HTTPHandler:     httpHandler,
+		IssuerRepo:            issuerRepo,
+		TemplateRepo:          templateRepo,
+		IssuerLookup:          issuerLookup,
+		TemplateLookup:        templateLookup,
+		OrganizationProjector: organizationProjector,
+		SchemaProjector:       schemaProjector,
+		CommandHandlers:       commandHandlers,
+		QueryHandlers:         queryHandlers,
+		HTTPHandler:           httpHandler,
 	}
 }
 
