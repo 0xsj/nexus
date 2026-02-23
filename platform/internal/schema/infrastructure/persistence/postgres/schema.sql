@@ -114,3 +114,17 @@ ON schema_versions (schema_id, version);
 -- Full-text search on name and description
 CREATE INDEX IF NOT EXISTS idx_schemas_search
 ON schemas USING GIN (to_tsvector('english', name || ' ' || description));
+
+-- ============================================================================
+-- Issuer Projections (Cross-Context Read Model)
+-- ============================================================================
+-- Populated by IssuerProjector consuming Issuer.* events from the Issuer context.
+-- Used by Schema command handlers to validate issuer ownership of custom schemas.
+
+CREATE TABLE IF NOT EXISTS schema_issuer_projections (
+    issuer_id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL DEFAULT '',
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -17,6 +17,26 @@ type DataFetcher interface {
 }
 
 // ============================================================================
+// OAuth URL Generator Port
+// ============================================================================
+
+// OAuthURLGenerator generates OAuth authorization URLs for external providers.
+type OAuthURLGenerator interface {
+	// GenerateAuthURL creates an authorization URL for the specified provider.
+	GenerateAuthURL(ctx context.Context, provider ProviderType, state string, redirectURI string) (string, error)
+}
+
+// ============================================================================
+// OAuth Code Exchanger Port
+// ============================================================================
+
+// OAuthCodeExchanger exchanges OAuth authorization codes for access tokens.
+type OAuthCodeExchanger interface {
+	// ExchangeCode exchanges an authorization code for an access token.
+	ExchangeCode(ctx context.Context, provider ProviderType, code string, redirectURI string) (accessToken string, err error)
+}
+
+// ============================================================================
 // Credential Issuer Port
 // ============================================================================
 
@@ -71,6 +91,28 @@ type EventPublisher interface {
 // ============================================================================
 // Null Implementations
 // ============================================================================
+
+// NullOAuthURLGenerator is a no-op implementation of OAuthURLGenerator.
+type NullOAuthURLGenerator struct{}
+
+// Compile-time check.
+var _ OAuthURLGenerator = NullOAuthURLGenerator{}
+
+// GenerateAuthURL is a no-op.
+func (NullOAuthURLGenerator) GenerateAuthURL(_ context.Context, _ ProviderType, _ string, _ string) (string, error) {
+	return "", nil
+}
+
+// NullOAuthCodeExchanger is a no-op implementation of OAuthCodeExchanger.
+type NullOAuthCodeExchanger struct{}
+
+// Compile-time check.
+var _ OAuthCodeExchanger = NullOAuthCodeExchanger{}
+
+// ExchangeCode is a no-op.
+func (NullOAuthCodeExchanger) ExchangeCode(_ context.Context, _ ProviderType, _ string, _ string) (string, error) {
+	return "", nil
+}
 
 // NullDataFetcher is a no-op implementation of DataFetcher.
 type NullDataFetcher struct{}

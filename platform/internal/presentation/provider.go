@@ -68,11 +68,23 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	identityProjector := projections.NewIdentityProjector(projQueries)
 	credentialProjector := projections.NewCredentialProjector(projQueries)
 
+	// Use projection-backed readers if none provided
+	identityReader := cfg.IdentityReader
+	if identityReader == nil {
+		identityReader = projections.NewIdentityReader(projQueries)
+	}
+	credentialReader := cfg.CredentialReader
+	if credentialReader == nil {
+		credentialReader = projections.NewCredentialReader(projQueries)
+	}
+
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		presentationRepo,
 		shareLinkRepo,
 		shareLinkLookup,
+		identityReader,
+		credentialReader,
 		cfg.Publisher,
 		cfg.Logger,
 	)

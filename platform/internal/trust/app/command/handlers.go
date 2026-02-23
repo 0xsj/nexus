@@ -17,21 +17,30 @@ import (
 
 // Handlers contains all command handlers for the Trust context.
 type Handlers struct {
-	vouchRepo domain.VouchRepository
-	publisher domain.EventPublisher
-	logger    log.Logger
+	vouchRepo          domain.VouchRepository
+	identityReader     domain.IdentityReader
+	credentialReader   domain.CredentialReader
+	organizationReader domain.OrganizationReader
+	publisher          domain.EventPublisher
+	logger             log.Logger
 }
 
 // NewHandlers creates a new Handlers instance.
 func NewHandlers(
 	vouchRepo domain.VouchRepository,
+	identityReader domain.IdentityReader,
+	credentialReader domain.CredentialReader,
+	organizationReader domain.OrganizationReader,
 	publisher domain.EventPublisher,
 	logger log.Logger,
 ) *Handlers {
 	return &Handlers{
-		vouchRepo: vouchRepo,
-		publisher: publisher,
-		logger:    logger,
+		vouchRepo:          vouchRepo,
+		identityReader:     identityReader,
+		credentialReader:   credentialReader,
+		organizationReader: organizationReader,
+		publisher:          publisher,
+		logger:             logger,
 	}
 }
 
@@ -49,22 +58,51 @@ func (h *Handlers) HandleGiveVouch(ctx context.Context, cmd GiveVouch) (*cqrs.Co
 		return nil, domain.VouchInvalid(op, "unknown relationship type: "+cmd.Relationship)
 	}
 
-	// 2. Parse vouch strength
+	// 2. Validate voucher exists (non-fatal — projection may lag)
+	if err := h.identityReader.GetUser(ctx, cmd.VoucherID); err != nil {
+		h.logger.Warn("voucher identity verification skipped",
+			log.String("op", op),
+			log.String("voucher_id", cmd.VoucherID),
+			log.Err(err),
+		)
+	}
+
+	// 3. Validate vouchee exists (non-fatal — projection may lag)
+	if err := h.identityReader.GetUser(ctx, cmd.VoucheeID); err != nil {
+		h.logger.Warn("vouchee identity verification skipped",
+			log.String("op", op),
+			log.String("vouchee_id", cmd.VoucheeID),
+			log.Err(err),
+		)
+	}
+
+	// 4. Validate credential exists (non-fatal — projection may lag)
+	if cmd.CredentialID != "" {
+		if err := h.credentialReader.GetCredential(ctx, cmd.CredentialID); err != nil {
+			h.logger.Warn("credential verification skipped",
+				log.String("op", op),
+				log.String("credential_id", cmd.CredentialID),
+				log.Err(err),
+			)
+		}
+	}
+
+	// 5. Parse vouch strength
 	strength, err := domain.NewVouchStrength(cmd.Strength)
 	if err != nil {
 		return nil, domain.VouchInvalid(op, err.Error())
 	}
 
-	// 3. Generate vouch ID
+	// 6. Generate vouch ID
 	vouchID := domain.NewVouchID()
 
-	// 4. Determine expiration
+	// 7. Determine expiration
 	var expiresAt time.Time
 	if cmd.ExpiresAt != nil {
 		expiresAt = *cmd.ExpiresAt
 	}
 
-	// 5. Create aggregate
+	// 8. Create aggregate
 	vouch, err := domain.GiveVouch(
 		vouchID,
 		cmd.VoucherID,
@@ -81,12 +119,12 @@ func (h *Handlers) HandleGiveVouch(ctx context.Context, cmd GiveVouch) (*cqrs.Co
 		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	// 6. Save
+	// 9. Save
 	if err := h.vouchRepo.Save(ctx, vouch); err != nil {
 		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	// 7. Publish events
+	// 10. Publish events
 	h.publishEvents(ctx, op, vouch.Changes()...)
 
 	return &cqrs.CommandResult{

@@ -65,10 +65,17 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	projQueries := generated.New(cfg.Pool)
 	identityProjector := projections.NewIdentityProjector(projQueries)
 
+	// Use projection-backed reader if none provided
+	identityReader := cfg.IdentityReader
+	if identityReader == nil {
+		identityReader = projections.NewIdentityReader(projQueries)
+	}
+
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		notificationRepo,
 		preferencesRepo,
+		identityReader,
 		cfg.Publisher,
 		cfg.Logger,
 	)

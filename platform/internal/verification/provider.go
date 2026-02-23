@@ -36,9 +36,13 @@ type Provider struct {
 
 // ProviderConfig holds configuration for the Verification provider.
 type ProviderConfig struct {
-	Pool      *pgxpool.Pool
-	Publisher domain.EventPublisher
-	Logger    log.Logger
+	Pool               *pgxpool.Pool
+	CredentialIssuer   domain.CredentialIssuer
+	DataFetcher        domain.DataFetcher
+	OAuthURLGenerator  domain.OAuthURLGenerator
+	OAuthCodeExchanger domain.OAuthCodeExchanger
+	Publisher          domain.EventPublisher
+	Logger             log.Logger
 }
 
 // ============================================================================
@@ -51,9 +55,31 @@ func NewProvider(cfg ProviderConfig) *Provider {
 	repository := postgres.NewVerificationRepository(cfg.Pool)
 	lookup := postgres.NewVerificationLookup(cfg.Pool)
 
+	// Use null implementations if none provided
+	credentialIssuer := cfg.CredentialIssuer
+	if credentialIssuer == nil {
+		credentialIssuer = domain.NullCredentialIssuer{}
+	}
+	dataFetcher := cfg.DataFetcher
+	if dataFetcher == nil {
+		dataFetcher = domain.NullDataFetcher{}
+	}
+	oauthURLGenerator := cfg.OAuthURLGenerator
+	if oauthURLGenerator == nil {
+		oauthURLGenerator = domain.NullOAuthURLGenerator{}
+	}
+	oauthCodeExchanger := cfg.OAuthCodeExchanger
+	if oauthCodeExchanger == nil {
+		oauthCodeExchanger = domain.NullOAuthCodeExchanger{}
+	}
+
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		repository,
+		credentialIssuer,
+		dataFetcher,
+		oauthURLGenerator,
+		oauthCodeExchanger,
 		cfg.Publisher,
 		cfg.Logger,
 	)

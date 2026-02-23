@@ -67,6 +67,7 @@ func (h *Handler) StartVerification(w http.ResponseWriter, r *http.Request) {
 	cmd := command.StartVerification{
 		UserID:       userID,
 		ProviderType: providerType,
+		RedirectURI:  req.RedirectURI,
 	}
 
 	// Execute command
@@ -84,6 +85,7 @@ func (h *Handler) StartVerification(w http.ResponseWriter, r *http.Request) {
 		ProviderType:   data.ProviderType,
 		Status:         data.Status,
 		OAuthState:     data.OAuthState,
+		AuthURL:        data.AuthURL,
 		StartedAt:      time.Now().UTC(),
 	})
 }
@@ -173,6 +175,7 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		VerificationID: verificationID,
 		Code:           req.Code,
 		State:          req.State,
+		RedirectURI:    req.RedirectURI,
 	}
 
 	// Execute command
@@ -188,6 +191,7 @@ func (h *Handler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, OAuthCallbackResponse{
 		VerificationID: data.VerificationID,
 		Status:         data.Status,
+		CredentialID:   data.CredentialID,
 	})
 }
 

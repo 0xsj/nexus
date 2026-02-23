@@ -21,6 +21,7 @@ const (
 type StartVerification struct {
 	UserID       string              `json:"user_id" validate:"required"`
 	ProviderType domain.ProviderType `json:"provider_type" validate:"required"`
+	RedirectURI  string              `json:"redirect_uri"`
 }
 
 // CommandName implements cqrs.Command.
@@ -45,6 +46,7 @@ type StartVerificationResult struct {
 	ProviderType   string `json:"provider_type"`
 	Status         string `json:"status"`
 	OAuthState     string `json:"oauth_state"`
+	AuthURL        string `json:"auth_url,omitempty"`
 }
 
 // ============================================================================
@@ -56,6 +58,7 @@ type ReceiveOAuthCallback struct {
 	VerificationID string `json:"verification_id" validate:"required"`
 	Code           string `json:"code" validate:"required"`
 	State          string `json:"state" validate:"required"`
+	RedirectURI    string `json:"redirect_uri"`
 }
 
 // CommandName implements cqrs.Command.
@@ -81,6 +84,7 @@ func (c ReceiveOAuthCallback) Validate() error {
 type ReceiveOAuthCallbackResult struct {
 	VerificationID string `json:"verification_id"`
 	Status         string `json:"status"`
+	CredentialID   string `json:"credential_id,omitempty"`
 }
 
 // ============================================================================

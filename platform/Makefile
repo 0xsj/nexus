@@ -1,4 +1,4 @@
-.PHONY: fmt test test-cover test-short test-integration dev run build clean
+.PHONY: fmt test test-cover test-short test-integration dev run build clean smoke-test
 
 # ============================================================================
 # Configuration
@@ -56,6 +56,9 @@ test-short:
 test-integration:
 	@echo "Running integration tests..."
 	@go test -tags=integration -v ./...
+
+smoke-test:
+	@bash scripts/smoke-test.sh
 
 # ============================================================================
 # Database Migrations
@@ -233,6 +236,7 @@ help:
 	@echo "  make test-cover           - Run tests with coverage"
 	@echo "  make test-short           - Run short tests"
 	@echo "  make test-integration     - Run all integration tests"
+	@echo "  make smoke-test           - Run end-to-end smoke test (requires Docker)"
 	@echo ""
 	@echo "Database:"
 	@echo "  make migrate-list         - List discovered bounded contexts"

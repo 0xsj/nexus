@@ -23,6 +23,8 @@ type Handlers struct {
 	presentationRepo domain.PresentationRepository
 	shareLinkRepo    domain.ShareLinkRepository
 	shareLinkLookup  *postgres.ShareLinkLookup
+	identityReader   domain.IdentityReader
+	credentialReader domain.CredentialReader
 	publisher        domain.EventPublisher
 	logger           log.Logger
 }
@@ -32,6 +34,8 @@ func NewHandlers(
 	presentationRepo domain.PresentationRepository,
 	shareLinkRepo domain.ShareLinkRepository,
 	shareLinkLookup *postgres.ShareLinkLookup,
+	identityReader domain.IdentityReader,
+	credentialReader domain.CredentialReader,
 	publisher domain.EventPublisher,
 	logger log.Logger,
 ) *Handlers {
@@ -39,6 +43,8 @@ func NewHandlers(
 		presentationRepo: presentationRepo,
 		shareLinkRepo:    shareLinkRepo,
 		shareLinkLookup:  shareLinkLookup,
+		identityReader:   identityReader,
+		credentialReader: credentialReader,
 		publisher:        publisher,
 		logger:           logger,
 	}
@@ -58,21 +64,32 @@ func (h *Handlers) HandleCreatePresentation(ctx context.Context, cmd CreatePrese
 		return nil, domain.PresentationInvalid(op, err.Error())
 	}
 
-	// 2. Generate presentation ID
+	// 2. Validate credentials exist (non-fatal — projection may lag)
+	for _, credID := range cmd.CredentialIDs {
+		if err := h.credentialReader.GetCredential(ctx, credID); err != nil {
+			h.logger.Warn("credential verification skipped",
+				log.String("op", op),
+				log.String("credential_id", credID),
+				log.Err(err),
+			)
+		}
+	}
+
+	// 3. Generate presentation ID
 	presID := domain.NewPresentationID()
 
-	// 3. Create aggregate
+	// 4. Create aggregate
 	pres, err := domain.CreatePresentation(presID, cmd.HolderDID, cmd.CredentialIDs, policy, cmd.Purpose)
 	if err != nil {
 		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	// 4. Save
+	// 5. Save
 	if err := h.presentationRepo.Save(ctx, pres); err != nil {
 		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	// 5. Publish events
+	// 6. Publish events
 	h.publishEvents(ctx, op, pres.Changes()...)
 
 	return &cqrs.CommandResult{

@@ -51,6 +51,7 @@ type VerificationStartedResponse struct {
 	ProviderType   string    `json:"provider_type"`
 	Status         string    `json:"status"`
 	OAuthState     string    `json:"oauth_state"`
+	AuthURL        string    `json:"auth_url,omitempty"`
 	StartedAt      time.Time `json:"started_at"`
 }
 
@@ -58,4 +59,5 @@ type VerificationStartedResponse struct {
 type OAuthCallbackResponse struct {
 	VerificationID string `json:"verification_id"`
 	Status         string `json:"status"`
+	CredentialID   string `json:"credential_id,omitempty"`
 }

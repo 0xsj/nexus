@@ -86,6 +86,24 @@ func (q *Queries) DeleteSchemaClaimsBySchemaID(ctx context.Context, schemaID uui
 	return err
 }
 
+const getIssuerProjection = `-- name: GetIssuerProjection :one
+SELECT issuer_id, name, active, created_at, updated_at FROM schema_issuer_projections
+WHERE issuer_id = $1
+`
+
+func (q *Queries) GetIssuerProjection(ctx context.Context, issuerID string) (SchemaIssuerProjection, error) {
+	row := q.db.QueryRow(ctx, getIssuerProjection, issuerID)
+	var i SchemaIssuerProjection
+	err := row.Scan(
+		&i.IssuerID,
+		&i.Name,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getSchemaByID = `-- name: GetSchemaByID :one
 SELECT id, schema_type, name, description, current_version, status, issuer_id, created_at, updated_at
 FROM schemas
@@ -416,6 +434,19 @@ func (q *Queries) InsertSchemaVersion(ctx context.Context, arg InsertSchemaVersi
 	return err
 }
 
+const issuerProjectionExists = `-- name: IssuerProjectionExists :one
+SELECT EXISTS(
+    SELECT 1 FROM schema_issuer_projections WHERE issuer_id = $1 AND active = true
+) AS exists
+`
+
+func (q *Queries) IssuerProjectionExists(ctx context.Context, issuerID string) (bool, error) {
+	row := q.db.QueryRow(ctx, issuerProjectionExists, issuerID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listSchemas = `-- name: ListSchemas :many
 SELECT id, schema_type, name, description, current_version, status, issuer_id, created_at, updated_at
 FROM schemas
@@ -537,6 +568,22 @@ func (q *Queries) SchemaVersionExists(ctx context.Context, arg SchemaVersionExis
 	return exists, err
 }
 
+const updateIssuerProjectionActive = `-- name: UpdateIssuerProjectionActive :exec
+UPDATE schema_issuer_projections
+SET active = $2, updated_at = NOW()
+WHERE issuer_id = $1
+`
+
+type UpdateIssuerProjectionActiveParams struct {
+	IssuerID string `json:"issuer_id"`
+	Active   bool   `json:"active"`
+}
+
+func (q *Queries) UpdateIssuerProjectionActive(ctx context.Context, arg UpdateIssuerProjectionActiveParams) error {
+	_, err := q.db.Exec(ctx, updateIssuerProjectionActive, arg.IssuerID, arg.Active)
+	return err
+}
+
 const updateSchema = `-- name: UpdateSchema :exec
 UPDATE schemas
 SET
@@ -630,5 +677,27 @@ type UpdateSchemaVersionParams struct {
 
 func (q *Queries) UpdateSchemaVersion(ctx context.Context, arg UpdateSchemaVersionParams) error {
 	_, err := q.db.Exec(ctx, updateSchemaVersion, arg.ID, arg.CurrentVersion, arg.UpdatedAt)
+	return err
+}
+
+const upsertIssuerProjection = `-- name: UpsertIssuerProjection :exec
+
+INSERT INTO schema_issuer_projections (issuer_id, name, active, created_at, updated_at)
+VALUES ($1, $2, $3, NOW(), NOW())
+ON CONFLICT (issuer_id) DO UPDATE
+SET name = EXCLUDED.name, active = EXCLUDED.active, updated_at = NOW()
+`
+
+type UpsertIssuerProjectionParams struct {
+	IssuerID string `json:"issuer_id"`
+	Name     string `json:"name"`
+	Active   bool   `json:"active"`
+}
+
+// ============================================================================
+// Issuer Projection Queries
+// ============================================================================
+func (q *Queries) UpsertIssuerProjection(ctx context.Context, arg UpsertIssuerProjectionParams) error {
+	_, err := q.db.Exec(ctx, upsertIssuerProjection, arg.IssuerID, arg.Name, arg.Active)
 	return err
 }

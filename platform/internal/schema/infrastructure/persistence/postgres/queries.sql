@@ -198,3 +198,27 @@ SELECT EXISTS(
 SELECT COUNT(*)
 FROM schema_versions
 WHERE schema_id = $1;
+
+-- ============================================================================
+-- Issuer Projection Queries
+-- ============================================================================
+
+-- name: UpsertIssuerProjection :exec
+INSERT INTO schema_issuer_projections (issuer_id, name, active, created_at, updated_at)
+VALUES ($1, $2, $3, NOW(), NOW())
+ON CONFLICT (issuer_id) DO UPDATE
+SET name = EXCLUDED.name, active = EXCLUDED.active, updated_at = NOW();
+
+-- name: UpdateIssuerProjectionActive :exec
+UPDATE schema_issuer_projections
+SET active = $2, updated_at = NOW()
+WHERE issuer_id = $1;
+
+-- name: GetIssuerProjection :one
+SELECT * FROM schema_issuer_projections
+WHERE issuer_id = $1;
+
+-- name: IssuerProjectionExists :one
+SELECT EXISTS(
+    SELECT 1 FROM schema_issuer_projections WHERE issuer_id = $1 AND active = true
+) AS exists;

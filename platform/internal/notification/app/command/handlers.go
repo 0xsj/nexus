@@ -18,6 +18,7 @@ import (
 type Handlers struct {
 	notificationRepo domain.NotificationRepository
 	preferencesRepo  domain.PreferencesRepository
+	identityReader   domain.IdentityReader
 	publisher        domain.EventPublisher
 	logger           log.Logger
 }
@@ -26,12 +27,14 @@ type Handlers struct {
 func NewHandlers(
 	notificationRepo domain.NotificationRepository,
 	preferencesRepo domain.PreferencesRepository,
+	identityReader domain.IdentityReader,
 	publisher domain.EventPublisher,
 	logger log.Logger,
 ) *Handlers {
 	return &Handlers{
 		notificationRepo: notificationRepo,
 		preferencesRepo:  preferencesRepo,
+		identityReader:   identityReader,
 		publisher:        publisher,
 		logger:           logger,
 	}
@@ -57,10 +60,24 @@ func (h *Handlers) HandleCreateNotification(ctx context.Context, cmd CreateNotif
 		return nil, domain.NotificationInvalid(op, "unknown channel: "+cmd.Channel)
 	}
 
-	// 3. Generate notification ID
+	// 3. Validate recipient exists (non-fatal — projection may lag)
+	if exists, err := h.identityReader.UserExists(ctx, cmd.RecipientID); err != nil {
+		h.logger.Warn("recipient identity verification failed",
+			log.String("op", op),
+			log.String("recipient_id", cmd.RecipientID),
+			log.Err(err),
+		)
+	} else if !exists {
+		h.logger.Warn("recipient not found in projection",
+			log.String("op", op),
+			log.String("recipient_id", cmd.RecipientID),
+		)
+	}
+
+	// 4. Generate notification ID
 	notifID := domain.NewNotificationID()
 
-	// 4. Create aggregate
+	// 5. Create aggregate
 	notif, err := domain.CreateNotification(
 		notifID,
 		cmd.RecipientID,
@@ -74,17 +91,17 @@ func (h *Handlers) HandleCreateNotification(ctx context.Context, cmd CreateNotif
 		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	// 5. Set optional action URL
+	// 6. Set optional action URL
 	if cmd.ActionURL != "" {
 		notif.WithActionURL(cmd.ActionURL)
 	}
 
-	// 6. Save
+	// 7. Save
 	if err := h.notificationRepo.Save(ctx, notif); err != nil {
 		return nil, pkgerrors.Wrap(err, op)
 	}
 
-	// 7. Publish events
+	// 8. Publish events
 	h.publishEvents(ctx, op, notif.Changes()...)
 
 	return &cqrs.CommandResult{

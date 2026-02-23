@@ -8,6 +8,8 @@ import (
 	"github.com/0xsj/nexus/platform/internal/schema/app/query"
 	"github.com/0xsj/nexus/platform/internal/schema/domain"
 	"github.com/0xsj/nexus/platform/internal/schema/infrastructure/persistence/postgres"
+	"github.com/0xsj/nexus/platform/internal/schema/infrastructure/persistence/postgres/generated"
+	"github.com/0xsj/nexus/platform/internal/schema/infrastructure/projections"
 	v1 "github.com/0xsj/nexus/platform/internal/schema/interface/http/v1"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
@@ -22,6 +24,9 @@ type Provider struct {
 	Repository   domain.SchemaRepository
 	SchemaLookup domain.SchemaLookup
 
+	// Projections
+	IssuerProjector *projections.IssuerProjector
+
 	// Application
 	CommandHandlers *command.Handlers
 	QueryHandlers   *query.Handlers
@@ -31,36 +36,53 @@ type Provider struct {
 }
 
 // ============================================================================
+// Configuration
+// ============================================================================
+
+// ProviderConfig holds configuration for the Schema provider.
+type ProviderConfig struct {
+	Pool           *pgxpool.Pool
+	IssuerReader   domain.IssuerReader
+	EventPublisher domain.EventPublisher
+	Logger         log.Logger
+}
+
+// ============================================================================
 // Constructor
 // ============================================================================
 
 // NewProvider creates a new Schema provider with all dependencies wired.
-func NewProvider(
-	pool *pgxpool.Pool,
-	issuerReader domain.IssuerReader,
-	eventPublisher domain.EventPublisher,
-	logger log.Logger,
-) *Provider {
+func NewProvider(cfg ProviderConfig) *Provider {
 	// Infrastructure
-	repository := postgres.NewRepository(pool)
+	repository := postgres.NewRepository(cfg.Pool)
 
 	// The repository implements both SchemaRepository and SchemaLookup
 	schemaLookup := repository
+
+	// Projections
+	projQueries := generated.New(cfg.Pool)
+	issuerProjector := projections.NewIssuerProjector(projQueries)
+
+	// Use projection-backed reader if none provided
+	issuerReader := cfg.IssuerReader
+	if issuerReader == nil {
+		issuerReader = projections.NewIssuerReader(projQueries)
+	}
 
 	// Application - Command
 	commandHandlers := command.NewHandlers(
 		repository,
 		schemaLookup,
 		issuerReader,
-		eventPublisher,
-		logger,
+		cfg.EventPublisher,
+		cfg.Logger,
 	)
 
 	// Application - Query
 	queryHandlers := query.NewHandlers(
 		repository,
 		schemaLookup,
-		logger,
+		cfg.Logger,
 	)
 
 	// Interface - HTTP
@@ -69,6 +91,7 @@ func NewProvider(
 	return &Provider{
 		Repository:      repository,
 		SchemaLookup:    schemaLookup,
+		IssuerProjector: issuerProjector,
 		CommandHandlers: commandHandlers,
 		QueryHandlers:   queryHandlers,
 		HTTPHandler:     httpHandler,
@@ -91,10 +114,10 @@ func (p *Provider) RegisterRoutes(r chi.Router) {
 // NewProviderWithDefaults creates a Provider with default/null implementations
 // for optional dependencies. Useful for testing or standalone operation.
 func NewProviderWithDefaults(pool *pgxpool.Pool, logger log.Logger) *Provider {
-	return NewProvider(
-		pool,
-		domain.NewNullIssuerReader(),
-		domain.NewNullEventPublisher(),
-		logger,
-	)
+	return NewProvider(ProviderConfig{
+		Pool:           pool,
+		IssuerReader:   domain.NewNullIssuerReader(),
+		EventPublisher: domain.NewNullEventPublisher(),
+		Logger:         logger,
+	})
 }

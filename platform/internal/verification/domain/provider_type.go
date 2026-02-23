@@ -16,6 +16,15 @@ const (
 
 	// ProviderTypeCoursera indicates Coursera as the verification provider.
 	ProviderTypeCoursera ProviderType = "coursera"
+
+	// ProviderTypeGoogle indicates Google as the verification provider.
+	ProviderTypeGoogle ProviderType = "google"
+
+	// ProviderTypeTwitter indicates Twitter as the verification provider.
+	ProviderTypeTwitter ProviderType = "twitter"
+
+	// ProviderTypeAWS indicates AWS as the verification provider.
+	ProviderTypeAWS ProviderType = "aws"
 )
 
 // ParseProviderType parses a string into a ProviderType.
@@ -27,6 +36,12 @@ func ParseProviderType(s string) (ProviderType, error) {
 		return ProviderTypeLinkedIn, nil
 	case "coursera":
 		return ProviderTypeCoursera, nil
+	case "google":
+		return ProviderTypeGoogle, nil
+	case "twitter":
+		return ProviderTypeTwitter, nil
+	case "aws":
+		return ProviderTypeAWS, nil
 	default:
 		return "", fmt.Errorf("invalid provider type: %s", s)
 	}
@@ -40,7 +55,7 @@ func (p ProviderType) String() string {
 // IsValid returns true if the ProviderType is a known, valid type.
 func (p ProviderType) IsValid() bool {
 	switch p {
-	case ProviderTypeGitHub, ProviderTypeLinkedIn, ProviderTypeCoursera:
+	case ProviderTypeGitHub, ProviderTypeLinkedIn, ProviderTypeCoursera, ProviderTypeGoogle, ProviderTypeTwitter, ProviderTypeAWS:
 		return true
 	default:
 		return false

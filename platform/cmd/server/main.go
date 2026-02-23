@@ -9,12 +9,13 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/0xsj/nexus/platform/internal/credential"
-	credentialdomain "github.com/0xsj/nexus/platform/internal/credential/domain"
+	credentialadapters "github.com/0xsj/nexus/platform/internal/credential/infrastructure/adapters"
 	credentialeventbus "github.com/0xsj/nexus/platform/internal/credential/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/identity"
+	identityadapters "github.com/0xsj/nexus/platform/internal/identity/infrastructure/adapters"
 	identityeventbus "github.com/0xsj/nexus/platform/internal/identity/infrastructure/eventbus"
-	"github.com/0xsj/nexus/platform/internal/identity/infrastructure/stubs"
 	"github.com/0xsj/nexus/platform/internal/integration"
+	integrationadapters "github.com/0xsj/nexus/platform/internal/integration/infrastructure/adapters"
 	integrationeventbus "github.com/0xsj/nexus/platform/internal/integration/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/issuer"
 	issuereventbus "github.com/0xsj/nexus/platform/internal/issuer/infrastructure/eventbus"
@@ -31,22 +32,24 @@ import (
 	"github.com/0xsj/nexus/platform/internal/profile"
 	profileeventbus "github.com/0xsj/nexus/platform/internal/profile/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/schema"
-	schemadomain "github.com/0xsj/nexus/platform/internal/schema/domain"
 	schemaeventbus "github.com/0xsj/nexus/platform/internal/schema/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/trust"
 	trusteventbus "github.com/0xsj/nexus/platform/internal/trust/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/verification"
+	verifadapters "github.com/0xsj/nexus/platform/internal/verification/infrastructure/adapters"
 	verificationeventbus "github.com/0xsj/nexus/platform/internal/verification/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/internal/wallet"
-	walletdomain "github.com/0xsj/nexus/platform/internal/wallet/domain"
+	walletadapters "github.com/0xsj/nexus/platform/internal/wallet/infrastructure/adapters"
 	walleteventbus "github.com/0xsj/nexus/platform/internal/wallet/infrastructure/eventbus"
 	"github.com/0xsj/nexus/platform/pkg/database"
+	"github.com/0xsj/nexus/platform/pkg/email"
 	"github.com/0xsj/nexus/platform/pkg/database/postgres"
 	"github.com/0xsj/nexus/platform/pkg/eventbus"
 	"github.com/0xsj/nexus/platform/pkg/eventbus/memory"
 	pkghttp "github.com/0xsj/nexus/platform/pkg/http"
 	"github.com/0xsj/nexus/platform/pkg/http/middleware"
 	"github.com/0xsj/nexus/platform/pkg/observability"
+	"github.com/0xsj/nexus/platform/pkg/observability/health"
 	"github.com/0xsj/nexus/platform/pkg/observability/log"
 )
 
@@ -72,6 +75,16 @@ func run() error {
 	dbPassword := envStr("DATABASE_PASSWORD", "nexus")
 	logLevel := envStr("LOG_LEVEL", "debug")
 	appEnv := envStr("APP_ENV", "development")
+
+	smtpHost := envStr("SMTP_HOST", "localhost")
+	smtpPort := envInt("SMTP_PORT", 1025)
+	smtpFrom := envStr("SMTP_FROM", "noreply@nexus.local")
+	appBaseURL := envStr("APP_BASE_URL", "http://localhost:3010")
+
+	githubClientID := envStr("OAUTH_GITHUB_CLIENT_ID", "")
+	githubClientSecret := envStr("OAUTH_GITHUB_CLIENT_SECRET", "")
+	googleClientID := envStr("OAUTH_GOOGLE_CLIENT_ID", "")
+	googleClientSecret := envStr("OAUTH_GOOGLE_CLIENT_SECRET", "")
 
 	// ========================================================================
 	// Observability
@@ -136,54 +149,122 @@ func run() error {
 
 	// Identity
 	identityPublisher := identityeventbus.NewAdapter(bus)
+
+	smtpSender := email.NewSMTPSender(email.SMTPConfig{
+		Host: smtpHost,
+		Port: smtpPort,
+		From: smtpFrom,
+	})
+
+	oauthProviders := make(map[string]identityadapters.OAuthProviderConfig)
+	if githubClientID != "" {
+		oauthProviders["github"] = identityadapters.OAuthProviderConfig{
+			ClientID:     githubClientID,
+			ClientSecret: githubClientSecret,
+			AuthURL:      "https://github.com/login/oauth/authorize",
+			TokenURL:     "https://github.com/login/oauth/access_token",
+			UserInfoURL:  "https://api.github.com/user",
+			Scopes:       []string{"read:user", "user:email"},
+		}
+	}
+	if googleClientID != "" {
+		oauthProviders["google"] = identityadapters.OAuthProviderConfig{
+			ClientID:     googleClientID,
+			ClientSecret: googleClientSecret,
+			AuthURL:      "https://accounts.google.com/o/oauth2/v2/auth",
+			TokenURL:     "https://oauth2.googleapis.com/token",
+			UserInfoURL:  "https://www.googleapis.com/oauth2/v2/userinfo",
+			Scopes:       []string{"openid", "email", "profile"},
+		}
+	}
+
+	oauthService := identityadapters.NewOAuthService(identityadapters.OAuthServiceConfig{
+		Providers: oauthProviders,
+	})
+	emailService := identityadapters.NewEmailService(identityadapters.EmailServiceConfig{
+		SMTPSender: smtpSender,
+		BaseURL:    appBaseURL,
+	})
+
 	identityProvider := identity.NewProvider(identity.ProviderConfig{
 		Pool:         pool,
-		DIDGenerator: stubs.NewNullDIDGenerator(),
-		WalletReader: stubs.NewNullWalletReader(),
-		OAuthService: stubs.NewNullOAuthService(),
-		EmailService: stubs.NewNullEmailService(obs.ComponentLogger("email")),
+		DIDGenerator: identityadapters.NewDIDGenerator(),
+		WalletReader: identityadapters.NewWalletReader(),
+		OAuthService: oauthService,
+		EmailService: emailService,
 		Publisher:    identityPublisher,
 		Logger:       obs.ComponentLogger("identity"),
 	})
 
-	// Schema
-	schemaPublisher := schemaeventbus.NewAdapter(bus)
-	schemaProvider := schema.NewProvider(
-		pool,
-		schemadomain.NewNullIssuerReader(),
-		schemaPublisher,
-		obs.ComponentLogger("schema"),
-	)
+	// Schema (nil IssuerReader → uses projection-backed reader)
+	schemaProvider := schema.NewProvider(schema.ProviderConfig{
+		Pool:           pool,
+		EventPublisher: schemaeventbus.NewAdapter(bus),
+		Logger:         obs.ComponentLogger("schema"),
+	})
 
 	// Credential (nil SchemaResolver → uses projection-backed reader)
+	jwtSigner, err := credentialadapters.NewJWTCredentialSigner()
+	if err != nil {
+		return fmt.Errorf("creating credential signer: %w", err)
+	}
 	credentialProvider := credential.NewProvider(credential.ProviderConfig{
 		Pool:      pool,
-		Signer:    &credentialdomain.NullCredentialSigner{},
+		Signer:    jwtSigner,
 		Publisher: credentialeventbus.NewAdapter(bus),
 		Logger:    obs.ComponentLogger("credential"),
 	})
 
-	// Verification
+	// Integration (must be created before Verification — it's a dependency)
+	integrationAdapterConfig := &integrationadapters.AdapterConfig{}
+	if githubClientID != "" {
+		integrationAdapterConfig.GitHub = &integrationadapters.GitHubConfig{
+			ClientID:     githubClientID,
+			ClientSecret: githubClientSecret,
+			RedirectURI:  appBaseURL + "/auth/callback/github",
+		}
+	}
+	if googleClientID != "" {
+		integrationAdapterConfig.Google = &integrationadapters.GoogleConfig{
+			ClientID:     googleClientID,
+			ClientSecret: googleClientSecret,
+			RedirectURI:  appBaseURL + "/auth/callback/google",
+		}
+	}
+	integrationRegistry, err := integrationadapters.RegisterDefaultAdapters(integrationAdapterConfig)
+	if err != nil {
+		return fmt.Errorf("creating integration adapter registry: %w", err)
+	}
+
+	integrationBridge := verifadapters.NewIntegrationBridge(integrationRegistry)
+
+	// Verification (with cross-context bridges)
+	credentialIssuerAdapter := verifadapters.NewCredentialIssuerAdapter(credentialProvider.CommandHandlers)
 	verificationProvider := verification.NewProvider(verification.ProviderConfig{
-		Pool:      pool,
-		Publisher: verificationeventbus.NewAdapter(bus),
-		Logger:    obs.ComponentLogger("verification"),
+		Pool:               pool,
+		CredentialIssuer:   credentialIssuerAdapter,
+		DataFetcher:        integrationBridge,
+		OAuthURLGenerator:  integrationBridge,
+		OAuthCodeExchanger: integrationBridge,
+		Publisher:          verificationeventbus.NewAdapter(bus),
+		Logger:             obs.ComponentLogger("verification"),
 	})
 
 	// Wallet
 	walletProvider := wallet.NewProvider(wallet.ProviderConfig{
 		Pool:              pool,
-		SignatureVerifier: walletdomain.NewNullSignatureVerifier(),
-		DIDDeriver:        walletdomain.NewNullDIDDeriver(),
-		ChallengeRepo:     walletdomain.NewNullChallengeRepository(),
+		SignatureVerifier: walletadapters.NewSIWESignatureVerifier(),
+		DIDDeriver:        walletadapters.NewPKHDIDDeriver(),
+		ChallengeRepo:     walletadapters.NewInMemoryChallengeRepository(),
 		Publisher:         walleteventbus.NewAdapter(bus),
 		Logger:            obs.ComponentLogger("wallet"),
 	})
 
-	// Organization (nil IdentityReader → uses projection-backed reader)
+	// Organization (nil IdentityReader → uses projection-backed reader,
+	// nil SlugLookup → falls back to postgres OrganizationLookup)
 	organizationProvider := organization.NewProvider(organization.ProviderConfig{
 		Pool:                pool,
-		SlugLookup:          organizationdomain.NewNullSlugLookup(),
+		SlugLookup:          nil,
 		DIDService:          organizationdomain.NewNullDIDService(),
 		NotificationService: organizationdomain.NewNullNotificationService(),
 		Publisher:           organizationeventbus.NewAdapter(bus),
@@ -220,7 +301,7 @@ func run() error {
 		Logger:    obs.ComponentLogger("trust"),
 	})
 
-	// Integration
+	// Integration (adapter registry created above, provider for HTTP routes + persistence)
 	integrationProvider := integration.NewProvider(integration.ProviderConfig{
 		Pool:      pool,
 		Publisher: integrationeventbus.NewAdapter(bus),
@@ -289,6 +370,11 @@ func run() error {
 		return fmt.Errorf("subscribing issuer organization projector: %w", err)
 	}
 
+	// Issuer events → Schema
+	if _, err := bus.Subscribe(ctx, "Issuer.*", schemaProvider.IssuerProjector.Handle); err != nil {
+		return fmt.Errorf("subscribing schema issuer projector: %w", err)
+	}
+
 	logger.Info("cross-context projectors subscribed")
 
 	// ========================================================================
@@ -301,6 +387,14 @@ func run() error {
 	router.Use(middleware.RequestID())
 	router.Use(middleware.Logger(obs.ComponentLogger("http")))
 	router.Use(middleware.Recovery())
+
+	// Health checks
+	healthChecker := health.NewChecker()
+	healthChecker.Register("database", health.Custom("database", func(ctx context.Context) error {
+		return db.Ping(ctx)
+	}))
+	healthHandler := health.NewHandler(healthChecker)
+	healthHandler.RegisterChiRoutes(router)
 
 	// Auth middleware (validates session tokens via Identity context)
 	authMiddleware := newAuthMiddleware(identityProvider.SessionLookup, obs.ComponentLogger("auth"))
@@ -334,6 +428,7 @@ func run() error {
 
 	server := pkghttp.NewServer(router, serverConfig)
 
+	healthChecker.MarkStarted()
 	logger.Info("server starting", log.String("address", server.Address()))
 	return server.ListenAndServe()
 }

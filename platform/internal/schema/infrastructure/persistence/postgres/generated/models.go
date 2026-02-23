@@ -39,6 +39,14 @@ type SchemaClaim struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type SchemaIssuerProjection struct {
+	IssuerID  string    `json:"issuer_id"`
+	Name      string    `json:"name"`
+	Active    bool      `json:"active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type SchemaVersion struct {
 	ID             uuid.UUID       `json:"id"`
 	SchemaID       uuid.UUID       `json:"schema_id"`
