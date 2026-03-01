@@ -430,9 +430,11 @@ func (u *User) onUserRegistered(e *UserRegisteredEvent) {
 	if err != nil {
 		panic("corrupt event store: UserRegistered has invalid UserID: " + e.UserID)
 	}
-	u.email, err = types.NewEmail(e.Email)
-	if err != nil {
-		panic("corrupt event store: UserRegistered has invalid Email: " + e.Email)
+	if e.Email != "" {
+		u.email, err = types.NewEmail(e.Email)
+		if err != nil {
+			panic("corrupt event store: UserRegistered has invalid Email: " + e.Email)
+		}
 	}
 	u.displayName, err = NewDisplayName(e.DisplayName)
 	if err != nil {

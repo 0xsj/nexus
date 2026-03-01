@@ -8,6 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/0xsj/nexus/platform/pkg/config"
+
 	"github.com/0xsj/nexus/platform/internal/credential"
 	credentialadapters "github.com/0xsj/nexus/platform/internal/credential/infrastructure/adapters"
 	credentialeventbus "github.com/0xsj/nexus/platform/internal/credential/infrastructure/eventbus"
@@ -62,6 +64,14 @@ func main() {
 
 func run() error {
 	ctx := context.Background()
+
+	// ========================================================================
+	// Load .env file (if present)
+	// ========================================================================
+
+	if err := config.LoadEnvFileIfExists(".env"); err != nil {
+		return fmt.Errorf("loading .env file: %w", err)
+	}
 
 	// ========================================================================
 	// Configuration
@@ -387,6 +397,13 @@ func run() error {
 	router.Use(middleware.RequestID())
 	router.Use(middleware.Logger(obs.ComponentLogger("http")))
 	router.Use(middleware.Recovery())
+
+	// CORS — allow frontend dev server and Docker frontend
+	router.Use(middleware.CORS(
+		"http://localhost:5173",
+		"http://localhost:3010",
+		"http://localhost:3000",
+	))
 
 	// Health checks
 	healthChecker := health.NewChecker()
